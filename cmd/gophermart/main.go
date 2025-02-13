@@ -14,6 +14,7 @@ import (
 
 var host = "localhost:8088"
 
+
 func main() {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
