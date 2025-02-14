@@ -25,18 +25,9 @@ func Withdraw(rwr http.ResponseWriter, req *http.Request) {
 		models.Sugar.Debug("not text/plain \n")
 		return
 	}
-	tokenStr := req.Header.Get("Authorization")
-	tokenStr, niceP := strings.CutPrefix(tokenStr, "Bearer <") // обрезаем -- Bearer <token>
-	tokenStr, niceS := strings.CutSuffix(tokenStr, ">")
 
-	var UserID int64
-	//	err := DataBase.GetIDByToken(context.Background(), tokenStr, &UserID)	// получаем ID пользователя по полученному токену
-
-	if (!niceP) || (!niceS) || (securitate.DataBase.GetIDByToken(context.Background(), tokenStr, &UserID) != nil) { // если неверная строка в Authorization - до GetIDByToken дело не дойдёт
-		rwr.WriteHeader(http.StatusUnauthorized) //
-		//  — неверная пара логин/пароль;
-		fmt.Fprintf(rwr, `{"status":"StatusUnauthorized"}`) // либо токена неверный формат, либо по нему нет юзера в базе
-		models.Sugar.Debug("Authorization header\n")
+	UserID, err := securitate.DataBase.LoginByToken(rwr, req)
+	if err != nil {
 		return
 	}
 

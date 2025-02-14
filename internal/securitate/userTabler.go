@@ -2,8 +2,12 @@ package securitate
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
+	"strings"
 
+	"github.com/Repinoid/kurs/internal/models"
 	pgx "github.com/jackc/pgx/v5"
 )
 
@@ -13,7 +17,9 @@ type DBstruct struct {
 
 var DataBase *DBstruct
 
-var DBEndPoint = "postgres://postgres:passwordas@forgo.c7wegmiakpkw.us-west-1.rds.amazonaws.com:5432/forgo"
+var DBEndPoint = "postgres://postgres:passwordas@localhost:5432/forgo"
+
+//var DBEndPoint = "postgres://postgres:passwordas@forgo.c7wegmiakpkw.us-west-1.rds.amazonaws.com:5432/forgo"
 
 //var "accounts" = "accounts"
 //var "orders" = "orders"
@@ -31,8 +37,10 @@ func ConnectUsersTable(ctx context.Context, DBEndPoint string) (*DBstruct, error
 }
 
 func (dataBase *DBstruct) UsersTableCreation(ctx context.Context) error {
+
 	db := dataBase.DB
-	// В PostgreSQL нельзя передавать название таблицы в качестве параметра
+	db.Exec(ctx, "CREATE EXTENSION pgcrypto;") // расширение для хэширования паролей
+
 	creatorOrder :=
 		"CREATE TABLE IF NOT EXISTS " + "accounts" +
 			"(userCode INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY ," +
@@ -106,25 +114,17 @@ func ConnectToDB(ctx context.Context) (*DBstruct, error) {
 		fmt.Printf("database connection error  %v", err)
 		return nil, err
 	}
-	err = DB.UsersTableCreation(ctx)
-	if err != nil {
-		fmt.Printf("tbl: %v", err)
-		return nil, err
+	if err := DB.UsersTableCreation(ctx); err != nil {
+		return nil, fmt.Errorf("UsersTableCreation %w", err)
 	}
-	err = DB.OrdersTableCreation(ctx)
-	if err != nil {
-		fmt.Printf("tbl: %v", err)
-		return nil, err
+	if err := DB.OrdersTableCreation(ctx); err != nil {
+		return nil, fmt.Errorf("OrdersTableCreation %w", err)
 	}
-	err = DB.TokensTableCreation(ctx)
-	if err != nil {
-		fmt.Printf("tbl: %v", err)
-		return nil, err
+	if err := DB.TokensTableCreation(ctx); err != nil {
+		return nil, fmt.Errorf("TokensTableCreation %w", err)
 	}
-	err = DB.WithdrawalsTableCreation(ctx)
-	if err != nil {
-		fmt.Printf("tbl: %v", err)
-		return nil, err
+	if err := DB.WithdrawalsTableCreation(ctx); err != nil {
+		return nil, fmt.Errorf("WithdrawalsTableCreation %w", err)
 	}
 	return DB, nil
 }
@@ -192,18 +192,6 @@ func (dataBase *DBstruct) ChangePassword(ctx context.Context, userName string, p
 	return nil
 }
 
-// func (dataBase *DBstruct) AddOrder(ctx context.Context, userName string, orderNumber int64, orderStatus string, accrual float64) error {
-// 	db := dataBase.DB
-
-// 	order := "INSERT INTO orders(userCode, ordernumber, orderStatus, accrual) VALUES ((select id from accounts where login = $1), $2, $3, $4) ;"
-
-// 	_, err := db.Exec(ctx, order, userName, orderNumber, orderStatus, accrual)
-// 	if err != nil {
-// 		return fmt.Errorf("add ORDER %w", err)
-// 	}
-// 	return nil
-// }
-
 func (dataBase *DBstruct) UpdateToken(ctx context.Context, userName string, tokenString string) error {
 	db := dataBase.DB
 	order := "UPDATE tokens SET token = $2 WHERE userCode = (select usercode from accounts where login = $1) ;"
@@ -238,19 +226,6 @@ func (dataBase *DBstruct) UpLoadOrderByID(ctx context.Context, userID int64, ord
 	return nil
 }
 
-func (dataBase *DBstruct) GetIDByToken(ctx context.Context, token string, tokenID *int64) error {
-	db := dataBase.DB
-	order := "SELECT usercode from " + "tokens" + " WHERE token =  $1 ;"
-	row := db.QueryRow(ctx, order, token)
-	var id int64
-	err := row.Scan(&id)
-	if err != nil {
-		return fmt.Errorf("GT %w", err)
-	}
-	*tokenID = id
-	return nil
-}
-
 func (dataBase *DBstruct) GetIDByOrder(ctx context.Context, orderNum int64, orderID *int64) error {
 	db := dataBase.DB
 	order := "SELECT usercode from " + "orders" + " WHERE orderNumber =  $1 ;"
@@ -262,4 +237,25 @@ func (dataBase *DBstruct) GetIDByOrder(ctx context.Context, orderNum int64, orde
 	}
 	*orderID = id
 	return nil
+}
+
+func (dataBase *DBstruct) LoginByToken(rwr http.ResponseWriter, req *http.Request) (int64, error) {
+
+	tokenStr := req.Header.Get("Authorization")
+	tokenStr, niceP := strings.CutPrefix(tokenStr, "Bearer <") // обрезаем -- Bearer <token>
+	tokenStr, niceS := strings.CutSuffix(tokenStr, ">")
+
+	var UserID int64
+	if niceP && niceS {
+		order := "SELECT usercode from " + "tokens" + " WHERE token =  $1 ;"
+		row := dataBase.DB.QueryRow(context.Background(), order, tokenStr)
+		err := row.Scan(&UserID)
+		if err == nil {
+			return UserID, nil
+		}
+	}
+	rwr.WriteHeader(http.StatusUnauthorized)            // 401 — неверная пара логин/пароль;
+	fmt.Fprintf(rwr, `{"status":"StatusUnauthorized"}`) // либо токена неверный формат, либо по нему нет юзера в базе
+	models.Sugar.Debug("Authorization header\n")
+	return 0, errors.New("Unauthorized")
 }

@@ -24,14 +24,6 @@ func RegisterUser(rwr http.ResponseWriter, req *http.Request) {
 
 	rwr.Header().Set("Content-Type", "application/json")
 
-	Token, err := securitate.BuildJWTString("someID", []byte(securitate.SECRET_KEY))
-	if err != nil {
-		rwr.WriteHeader(http.StatusInternalServerError) //500 — внутренняя ошибка сервера.
-		fmt.Fprintf(rwr, `{"status":"StatusInternalServerError"}`)
-		models.Sugar.Debugf("BuildJWTString %+v\n", err)
-		return
-	}
-
 	telo, err := io.ReadAll(req.Body)
 	if err != nil {
 		rwr.WriteHeader(http.StatusInternalServerError) //500 — внутренняя ошибка сервера.
@@ -60,6 +52,15 @@ func RegisterUser(rwr http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(rwr, `{"status":"StatusConflict"}`)
 		return
 	}
+
+	Token, err := securitate.BuildJWTString(logos.UserName, []byte(securitate.SECRET_KEY))
+	if err != nil {
+		rwr.WriteHeader(http.StatusInternalServerError) //500 — внутренняя ошибка сервера.
+		fmt.Fprintf(rwr, `{"status":"StatusInternalServerError"}`)
+		models.Sugar.Debugf("BuildJWTString %+v\n", err)
+		return
+	}
+
 	err = securitate.DataBase.AddUser(context.Background(), logos.UserName, logos.Password, Token)
 	if err != nil {
 		rwr.WriteHeader(http.StatusBadRequest) // 400 — неверный формат запроса;

@@ -57,7 +57,7 @@ func LoginUser(rwr http.ResponseWriter, req *http.Request) {
 		fmt.Fprintf(rwr, `{"status":"StatusUnauthorized"}`)
 		return
 	}
-	Token, err := securitate.BuildJWTString("someID", []byte(securitate.SECRET_KEY))
+	Token, err := securitate.BuildJWTString(logos.UserName, []byte(securitate.SECRET_KEY))
 	if err != nil {
 		fmt.Printf("%v\n", err)
 		return

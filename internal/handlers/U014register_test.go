@@ -19,12 +19,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const userq = 5
+const ordq = 6
+
 func (suite *TstHandlers) Test04Add5Users() {
 	type logos struct {
 		UserName string `json:"login"`
 		Password string `json:"password"`
 	}
-	for i := range 5 {
+	for i := range userq {
 		userName := fmt.Sprintf("user%02d", i+1)
 		password := fmt.Sprintf("pass%02d", i+1)
 		lo, _ := json.Marshal(logos{UserName: userName, Password: password})
@@ -38,12 +41,12 @@ func (suite *TstHandlers) Test04Add5Users() {
 		require.NoError(suite.T(), err)
 
 		var token string
-		for j := range 10 {
+		for j := range ordq {
 			err := securitate.DataBase.GetToken(context.Background(), userName, &token)
 			suite.Require().NoError(err, "GetToken err")
 			tokenStr := "Bearer <" + token + ">"
 
-			num := rual.Luhner(i*20 + j + 1)
+			num := rual.Luhner(i*ordq + j + 1)
 			request = httptest.NewRequest(http.MethodPost, "/api/user/orders", bytes.NewBufferString(strconv.Itoa(num)))
 			w = httptest.NewRecorder()
 			request.Header.Set("Content-Type", "text/plain")

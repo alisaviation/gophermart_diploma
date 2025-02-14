@@ -13,7 +13,7 @@ import (
 	"github.com/Repinoid/kurs/internal/securitate"
 )
 
-func (suite *TstHandlers) Test08GetDraws() {
+func (suite *TstHandlers) Test08GetBalance() {
 	type want struct {
 		code        int
 		contentType string

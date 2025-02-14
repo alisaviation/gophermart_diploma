@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/Repinoid/kurs/internal/models"
 	"github.com/Repinoid/kurs/internal/securitate"
@@ -18,28 +17,33 @@ type BalanceStruct struct {
 
 func GetBalance(rwr http.ResponseWriter, req *http.Request) {
 
-	tokenStr := req.Header.Get("Authorization")
-	tokenStr, niceP := strings.CutPrefix(tokenStr, "Bearer <") // обрезаем -- Bearer <token>
-	tokenStr, niceS := strings.CutSuffix(tokenStr, ">")
-
-	var UserID int64
-	//	err := DataBase.GetIDByToken(context.Background(), tokenStr, &UserID)	// получаем ID пользователя по полученному токену
-
-	if (!niceP) || (!niceS) || (securitate.DataBase.GetIDByToken(context.Background(), tokenStr, &UserID) != nil) { // если неверная строка в Authorization - до GetIDByToken дело не дойдёт
-		rwr.WriteHeader(http.StatusUnauthorized)            // 401 — неверная пара логин/пароль;
-		fmt.Fprintf(rwr, `{"status":"StatusUnauthorized"}`) // либо токена неверный формат, либо по нему нет юзера в базе
-		models.Sugar.Debug("Authorization header\n")
+	UserID, err := securitate.DataBase.LoginByToken(rwr, req)
+	if err != nil {
 		return
 	}
 
-	db := securitate.DataBase.DB
-	//	order := "select ordernumber as number, amount as sum, processed_at from withdrawn where usercode=$1 order by processed_at ;"
-	order := "SELECT (SELECT SUM(o.accrual) FROM orders O where o.usercode=$1) as current, " +
-		"(SELECT COALESCE(SUM(w.amount),0) FROM withdrawn w where w.usercode=$1) as withdrawn;"
+	// tokenStr := req.Header.Get("Authorization")
+	// tokenStr, niceP := strings.CutPrefix(tokenStr, "Bearer <") // обрезаем -- Bearer <token>
+	// tokenStr, niceS := strings.CutSuffix(tokenStr, ">")
 
-	row := db.QueryRow(context.Background(), order, UserID)
+	// //	var UserID int64
+	// //	err := DataBase.GetIDByToken(context.Background(), tokenStr, &UserID)	// получаем ID пользователя по полученному токену
+
+	// if (!niceP) || (!niceS) || (securitate.DataBase.GetIDByToken(context.Background(), tokenStr, &UserID) != nil) { // если неверная строка в Authorization - до GetIDByToken дело не дойдёт
+	// 	rwr.WriteHeader(http.StatusUnauthorized)            // 401 — неверная пара логин/пароль;
+	// 	fmt.Fprintf(rwr, `{"status":"StatusUnauthorized"}`) // либо токена неверный формат, либо по нему нет юзера в базе
+	// 	models.Sugar.Debug("Authorization header\n")
+	// 	return
+	// }
+
+	// order := "SELECT (SELECT SUM(o.accrual) FROM orders O where o.usercode=$1) as current, " +
+	// 	"(SELECT COALESCE(SUM(w.amount),0) FROM withdrawn w where w.usercode=$1) as withdrawn;"
+	order := "SELECT (SELECT SUM(orders.accrual) FROM orders where orders.usercode=$1), " +
+		"(SELECT COALESCE(SUM(withdrawn.amount),0) FROM withdrawn  where withdrawn.usercode=$1) ;"
+
+	row := securitate.DataBase.DB.QueryRow(context.Background(), order, UserID)
 	var current, withdr float64
-	err := row.Scan(&current, &withdr)
+	err = row.Scan(&current, &withdr)
 	if err != nil {
 		rwr.WriteHeader(http.StatusInternalServerError) // //500 — внутренняя ошибка сервера.
 		fmt.Fprintf(rwr, `{"status":"StatusInternalServerError"}`)
@@ -47,9 +51,8 @@ func GetBalance(rwr http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	bs := BalanceStruct{Current: current - withdr, Withdrawn: withdr}
+	bs := BalanceStruct{Current: current - withdr, Withdrawn: withdr} // текущий счёт - сумма бонусов минус сумма списаний
 
 	rwr.WriteHeader(http.StatusOK)
-	//	fmt.Fprintf(rwr, `{"status":"StatusOK"}`)
 	json.NewEncoder(rwr).Encode(bs)
 }
