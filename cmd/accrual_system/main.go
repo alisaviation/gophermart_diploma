@@ -1,4 +1,4 @@
-package main
+package accrual_system
 
 import (
 	"flag"
@@ -46,20 +46,14 @@ func main() {
 	}
 
 	MarketLogger.Infow(
-		"Gophermarket starts working",
-		"address: ", marketAddress,
+		"Accural system starts working",
+		"address: ", accrualSystemAddress,
 	)
 	defer logger.Sync()
 	r := chi.NewRouter()
 
 	r.Route("/", func(r chi.Router) {
-		r.Post("/api/user/register")
-		r.Post("/api/user/login")
-		r.Post("/api/user/orders")
-		r.Get("/api/user/orders")
-		r.Get("/api/user/balance")
-		r.Get("/api/user/withdrawals")
-		r.Post("/api/user/balance/withdraw")
+		r.Get("/api/orders/{{order_number}}")
 
 	})
 }
