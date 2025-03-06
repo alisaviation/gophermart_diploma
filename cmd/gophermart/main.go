@@ -2,31 +2,46 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
+
+	storage "github.com/Tanya1515/gophermarket/cmd/storage"
+	psql "github.com/Tanya1515/gophermarket/cmd/storage/postgresql"
+	_ "github.com/Tanya1515/gophermarket/cmd/additional"
 )
+
+type Gophermarket struct {
+	storage   storage.StorageInterface
+	logger    zap.SugaredLogger
+}
 
 func init() {
 	marketAddressFlag = flag.String("a", "localhost:8080", "gophermarket address")
 	storageUrlFlag = flag.String("d", "localhost:5432", "database url")
-	accrualSystemAddressFlag = flag.String("r", "localhost:8081", "acccrual system address")
+	// accrualSystemAddressFlag = flag.String("r", "localhost:8081", "acccrual system address")
 }
 
 var (
-	marketAddressFlag        *string
-	storageUrlFlag           *string
-	accrualSystemAddressFlag *string
+	marketAddressFlag *string
+	storageUrlFlag    *string
+	// accrualSystemAddressFlag *string
 )
 
 func main() {
-
+	var GM Gophermarket
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
 	MarketLogger := *logger.Sugar()
+
+	GM.logger = MarketLogger
+
+	defer GM.logger.Sync()
 
 	flag.Parse()
 
@@ -40,26 +55,38 @@ func main() {
 		storageAddress = *storageUrlFlag
 	}
 
-	accrualSystemAddress, ok := os.LookupEnv("ACCRUAL_SYSTEM_ADDRESS")
-	if !ok {
-		accrualSystemAddress = *accrualSystemAddressFlag
-	}
+	storageAddressArgs := strings.Split(storageAddress, ":")
 
-	MarketLogger.Infow(
+	// accrualSystemAddress, ok := os.LookupEnv("ACCRUAL_SYSTEM_ADDRESS")
+	// if !ok {
+	// 	accrualSystemAddress = *accrualSystemAddressFlag
+	// }
+
+	GM.storage = &psql.PostgreSQL{Address: storageAddressArgs[0], Port: storageAddressArgs[1], UserName: "collector", Password: "postgres", DBName: "gophermarket"}
+	err = GM.storage.Init()
+	if err != nil {
+		panic(err)
+	}
+	GM.logger.Infow(
 		"Gophermarket starts working",
 		"address: ", marketAddress,
 	)
-	defer logger.Sync()
+
 	r := chi.NewRouter()
 
 	r.Route("/", func(r chi.Router) {
-		r.Post("/api/user/register")
-		r.Post("/api/user/login")
-		r.Post("/api/user/orders")
-		r.Get("/api/user/orders")
-		r.Get("/api/user/balance")
-		r.Get("/api/user/withdrawals")
-		r.Post("/api/user/balance/withdraw")
+		r.Post("/api/user/register", GM.RegisterUser())
+		r.Post("/api/user/login", GM.AuthentificateUser())
+		r.Post("/api/user/orders", GM.AddOrdersInfobyUser())
+		r.Get("/api/user/orders", GM.GetOrdersInfobyUser())
+		r.Get("/api/user/balance", GM.GetUserBalance())
+		r.Get("/api/user/withdrawals", GM.GetUserWastes())
+		r.Post("/api/user/balance/withdraw", GM.PayByPoints())
 
 	})
+
+	err = http.ListenAndServe(marketAddress, r)
+	if err != nil {
+		GM.logger.Fatalw(err.Error(), "event", "start server")
+	}
 }
