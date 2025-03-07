@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	add "github.com/Tanya1515/gophermarket/cmd/additional"
 )
@@ -43,7 +44,20 @@ func (GM *Gophermarket) RegisterUser() http.HandlerFunc {
 			return
 		}
 
-		// create JWT token and add it to cookies
+		JWTtoken, err := add.GenerateToken(user, GM.secretKey)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while generating jwt token: %s", err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorf("Error while generating jwt token: ", err.Error())
+			return
+		}
+
+		cookie := &http.Cookie{
+			Name:   "token",
+			Value:  JWTtoken,
+			MaxAge: 3600,
+		}
+
+		http.SetCookie(rw, cookie)
 
 		rw.WriteHeader(http.StatusOK)
 
@@ -74,7 +88,7 @@ func (GM *Gophermarket) AuthentificateUser() http.HandlerFunc {
 			return
 		}
 
-		ok, err := GM.storage.CheckUser(user)
+		ok, err := GM.storage.CheckUser(user.Login, user.Password)
 		if (err != nil) && ok {
 			http.Error(rw, fmt.Sprintf("Error while processing user with login %s: %s", user.Login, err.Error()), http.StatusInternalServerError)
 			GM.logger.Errorf("Error while processing user with login ", user.Login, ": ", err.Error())
@@ -87,7 +101,20 @@ func (GM *Gophermarket) AuthentificateUser() http.HandlerFunc {
 			return
 		}
 
-		// create JWT token and add it to cookies
+		JWTtoken, err := add.GenerateToken(user, GM.secretKey)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while generating jwt token: %s", err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorf("Error while generating jwt token: ", err.Error())
+			return
+		}
+
+		cookie := &http.Cookie{
+			Name:   "token",
+			Value:  JWTtoken,
+			MaxAge: 3600,
+		}
+
+		http.SetCookie(rw, cookie)
 
 		rw.WriteHeader(http.StatusOK)
 
@@ -99,18 +126,18 @@ func (GM *Gophermarket) AuthentificateUser() http.HandlerFunc {
 
 func (GM *Gophermarket) GetOrdersInfobyUser() http.HandlerFunc {
 	getOrdersInfobyUser := func(rw http.ResponseWriter, r *http.Request) {
-		var user add.User
-		user.Login = "ozerova"
+		login := r.Context().Value("userLogin")
+
 		orders := make([]add.Order, 0, 10)
 
-		err := GM.storage.GetAllOrders(&orders, user.Login)
+		err := GM.storage.GetAllOrders(&orders, login.(string))
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("Error while getting order info for user %s: %s", user.Login, err.Error()), http.StatusInternalServerError)
-			GM.logger.Errorf("Error while getting order info for user ", user.Login, ": ", err.Error())
+			http.Error(rw, fmt.Sprintf("Error while getting order info for user %s: %s", login, err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorf("Error while getting order info for user ", login, ": ", err.Error())
 			return
 		}
 
-		if orders == nil {
+		if len(orders) == 0 {
 			rw.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -134,7 +161,8 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 		var buf bytes.Buffer
 		var err error
 		var orderNumber int
-		var user add.User
+
+		login := r.Context().Value("userLogin")
 
 		_, err = buf.ReadFrom(r.Body)
 		if err != nil {
@@ -155,12 +183,19 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 			GM.logger.Errorln("Order number is invalid")
 			return
 		}
-		// need to add function AddNewOrder
-		err = GM.storage.AddNewOrder(user, orderNumber)
+
+		err = GM.storage.AddNewOrder(login.(string), orderNumber)
 		if err != nil {
-			// need to add new codes
-			http.Error(rw, fmt.Sprintf("Error while adding new order to database: %s", err.Error()), http.StatusInternalServerError)
-			return
+			if strings.Contains(err.Error(), "error: order with number") {
+				http.Error(rw, err.Error(), http.StatusConflict)
+				return
+			} else if strings.Contains(err.Error(), "the order with number") {
+				rw.WriteHeader(http.StatusOK)
+				return
+			} else {
+				http.Error(rw, fmt.Sprintf("Error while adding new order to database: %s", err.Error()), http.StatusInternalServerError)
+				return
+			}
 		}
 
 		rw.WriteHeader(http.StatusAccepted)
@@ -172,14 +207,12 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 
 func (GM *Gophermarket) GetUserBalance() http.HandlerFunc {
 	getUserBalance := func(rw http.ResponseWriter, r *http.Request) {
-		// передать сюда пользователя
 
-		var user add.User
-		user.Login = "ozerova"
+		login := r.Context().Value("userLogin")
 
-		balance, err := GM.storage.GetUserBalance(user.Login)
+		balance, err := GM.storage.GetUserBalance(login.(string))
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("Error while getting user %s balance: %s", user.Login, err.Error()), http.StatusInternalServerError)
+			http.Error(rw, fmt.Sprintf("Error while getting user %s balance: %s", login, err.Error()), http.StatusInternalServerError)
 			GM.logger.Errorf("Error while unmarshalling request body for processing new order: ", err.Error())
 			return
 		}
@@ -201,8 +234,30 @@ func (GM *Gophermarket) GetUserBalance() http.HandlerFunc {
 
 func (GM *Gophermarket) GetUserWastes() http.HandlerFunc {
 	getUserWastes := func(rw http.ResponseWriter, r *http.Request) {
-		var user add.User
-		user.Login = "ozerova"
+		login := r.Context().Value("userLogin")
+		orders := make([]add.OrderSpend, 0, 10)
+
+		err := GM.storage.GetSpendOrders(&orders, login.(string))
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while getting order with points to spend info for user %s: %s", login, err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorf("Error while getting order with points to spend info for user ", login, ": ", err.Error())
+			return
+		}
+
+		if len(orders) == 0 {
+			rw.WriteHeader(http.StatusNoContent)
+			return
+		}
+		ordersByte, err := json.Marshal(orders)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while unmarshalling orders with points to spend to bytes: %s", err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorf("Error while getting order with points to spend info for user: ", err.Error())
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
+
+		rw.Write(ordersByte)
 
 	}
 	return http.HandlerFunc(getUserWastes)
@@ -210,6 +265,39 @@ func (GM *Gophermarket) GetUserWastes() http.HandlerFunc {
 
 func (GM *Gophermarket) PayByPoints() http.HandlerFunc {
 	payByPoints := func(rw http.ResponseWriter, r *http.Request) {
+		var buf bytes.Buffer
+		var err error
+		var order add.OrderSpend
+		login := r.Context().Value("userLogin")
+
+		_, err = buf.ReadFrom(r.Body)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while reading order number for processing it: %s", err.Error()), http.StatusBadRequest)
+			GM.logger.Errorf("Error while reading order number for processing it: ", err.Error())
+			return
+		}
+
+		err = json.Unmarshal(buf.Bytes(), &order)
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while unmarshalling request body for processing new order: %s", err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorf("Error while unmarshalling request body for processing new order: ", err.Error())
+			return
+		}
+
+		if !add.CheckOrderNumber(order.Number) {
+			http.Error(rw, "Order number is invalid", http.StatusUnprocessableEntity)
+			GM.logger.Errorln("Order number is invalid")
+			return
+		}
+
+		err = GM.storage.ProcessPayPoints(order, login.(string))
+		if err != nil {
+			http.Error(rw, fmt.Sprintf("Error while processing order for spending points: %s", err.Error()), http.StatusInternalServerError)
+			GM.logger.Errorln("Error while processing order for spending points: ", err.Error())
+			return
+		}
+
+		rw.WriteHeader(http.StatusOK)
 
 	}
 	return http.HandlerFunc(payByPoints)

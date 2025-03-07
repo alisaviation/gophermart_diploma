@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "time"
 
 	add "github.com/Tanya1515/gophermarket/cmd/additional"
 )
@@ -23,12 +24,12 @@ func (db *PostgreSQL) CheckUserLogin(login string) error {
 	return nil
 }
 
-func (db *PostgreSQL) CheckUser(user add.User) (ok bool, err error) {
+func (db *PostgreSQL) CheckUser(login, password string) (ok bool, err error) {
 	ok = true
 	row := db.dbConn.QueryRow(`SELECT (password = crypt($1, password)) 
 								AS password_match
 								FROM users
-								WHERE login = $2;`, user.Password, user.Login)
+								WHERE login = $2;`, password, login)
 
 	err = row.Scan(&ok)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -50,10 +51,46 @@ func (db *PostgreSQL) GetUserBalance(login string) (balance add.Balance, err err
 }
 
 func (db *PostgreSQL) GetAllOrders(orders *[]add.Order, login string) (err error) {
+	var order add.Order
+	rows, err := db.dbConn.Query("SELECT id, status, uploaded_at, accrual FROM orders WHERE user_id=(SELECT id FROM users WHERE login=$1) ORDER BY uploaded_at DESC", login)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("no orders for user have been found %w", err)
+		}
+		return
+	}
+	defer rows.Close()
 
-	
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil
+	for rows.Next() {
+		err = rows.Scan(&order.Number, &order.Status, &order.Uploaded_at, &order.Accrual)
+		if err != nil {
+			return
+		}
+
+		*orders = append(*orders, order)
+	}
+
+	return
+}
+
+func (db *PostgreSQL) GetSpendOrders(orders *[]add.OrderSpend, login string) (err error) {
+	var order add.OrderSpend
+	rows, err := db.dbConn.Query("SELECT id, processed_at, sum FROM order_spend WHERE user_id=(SELECT id FROM users WHERE login=$1) ORDER BY orders.uploaded_at DESC", login)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("no orders for user have been found %w", err)
+		}
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		err = rows.Scan(&order.Number, &order.Sum, &order.Processed_at)
+		if err != nil {
+			return
+		}
+
+		*orders = append(*orders, order)
 	}
 
 	return

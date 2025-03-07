@@ -47,16 +47,18 @@ func (db *PostgreSQL) Init() error {
 
 	_, err = db.dbConn.Exec(`CREATE TABLE Orders (ID BIGINT PRIMARY KEY,
 														Status Status_Enum,
-														Uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-														Accrual BIGINT);`)
+														Uploaded_at TIMESTAMP,
+														Accrual FLOAT8,
+														User_ID BIGINT REFERENCES Users (ID) ON DELETE CASCADE);`)
 
 	if err != nil {
 		return err
 	}
 
-	_, err = db.dbConn.Exec(`CREATE TABLE Users_To_Orders (User_ID BIGINT REFERENCES Users (ID),
-														Order_ID BIGINT REFERENCES Orders (ID));`)
-
+	_, err = db.dbConn.Exec(`CREATE TABLE Order_Spend (ID BIGINT PRIMARY KEY,
+													Processed_at TIMESTAMP,
+													Sum FLOAT8
+													User_ID BIGINT REFERENCES Users (ID) ON DELETE CASCADE);`)
 	if err != nil {
 		return err
 	}

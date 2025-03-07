@@ -2,6 +2,8 @@ package additional
 
 import (
 	"time"
+
+	"github.com/golang-jwt/jwt/v4"
 )
 
 type Balance struct {
@@ -23,11 +25,43 @@ const (
 	Processed  Status = "PROCESSED"
 )
 
+type OrderSpend struct {
+	Number       int       `json:"order"`
+	Sum          float64   `json:"sum"`
+	Processed_at time.Time `json:"processed_at"`
+}
+
 type Order struct {
-	number      int
-	status      Status
-	accrual     int64
-	uploaded_at time.Time
+	Number      int       `json:"number"`
+	Status      Status    `json:"status"`
+	Accrual     float64   `json:"accrual"`
+	Uploaded_at time.Time `json:"uploaded_at"`
+}
+
+const TOKEN_EXP = time.Hour
+
+type Claims struct {
+	jwt.RegisteredClaims
+	UserLogin    string
+	UserPassword string
+}
+
+func GenerateToken(user User, secretKey string) (JWTtoken string, err error) {
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(TOKEN_EXP)),
+		},
+		UserLogin:    user.Login,
+		UserPassword: user.Password,
+	})
+
+	JWTtoken, err = token.SignedString([]byte(secretKey))
+	if err != nil {
+		return
+	}
+
+	return
 }
 
 func CheckOrderNumber(orderNumber int) bool {

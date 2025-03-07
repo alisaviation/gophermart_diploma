@@ -9,13 +9,17 @@ type StorageInterface interface {
 
 	RegisterNewUser(user add.User) error
 
-	AddNewOrder(user add.User, orderNumber int) error
+	AddNewOrder(login string, orderNumber int) error
 
 	CheckUserLogin(login string) error
 
-	CheckUser(user add.User) (bool, error)
+	CheckUser(login, password string) (bool, error)
 
 	GetUserBalance(login string) (add.Balance, error)
 
 	GetAllOrders(orders *[]add.Order, login string) error
+
+	GetSpendOrders(orders *[]add.OrderSpend, login string) error
+
+	ProcessPayPoints(order add.OrderSpend, login string) error
 }

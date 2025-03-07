@@ -9,14 +9,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
+	_ "github.com/Tanya1515/gophermarket/cmd/additional"
 	storage "github.com/Tanya1515/gophermarket/cmd/storage"
 	psql "github.com/Tanya1515/gophermarket/cmd/storage/postgresql"
-	_ "github.com/Tanya1515/gophermarket/cmd/additional"
 )
 
 type Gophermarket struct {
-	storage   storage.StorageInterface
-	logger    zap.SugaredLogger
+	storage storage.StorageInterface
+	logger  zap.SugaredLogger
+	secretKey string
 }
 
 func init() {
@@ -72,16 +73,18 @@ func main() {
 		"address: ", marketAddress,
 	)
 
+	GM.secretKey = "secretKey"
+
 	r := chi.NewRouter()
 
 	r.Route("/", func(r chi.Router) {
 		r.Post("/api/user/register", GM.RegisterUser())
 		r.Post("/api/user/login", GM.AuthentificateUser())
-		r.Post("/api/user/orders", GM.AddOrdersInfobyUser())
-		r.Get("/api/user/orders", GM.GetOrdersInfobyUser())
-		r.Get("/api/user/balance", GM.GetUserBalance())
-		r.Get("/api/user/withdrawals", GM.GetUserWastes())
-		r.Post("/api/user/balance/withdraw", GM.PayByPoints())
+		r.Post("/api/user/orders", GM.MiddlewareCheckUser(GM.AddOrdersInfobyUser()))
+		r.Get("/api/user/orders", GM.MiddlewareCheckUser(GM.GetOrdersInfobyUser()))
+		r.Get("/api/user/balance", GM.MiddlewareCheckUser(GM.GetUserBalance()))
+		r.Get("/api/user/withdrawals", GM.MiddlewareCheckUser(GM.GetUserWastes()))
+		r.Post("/api/user/balance/withdraw", GM.MiddlewareCheckUser(GM.PayByPoints()))
 
 	})
 
