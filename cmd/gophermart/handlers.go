@@ -292,7 +292,14 @@ func (GM *Gophermarket) PayByPoints() http.HandlerFunc {
 
 		err = GM.storage.ProcessPayPoints(order, login.(string))
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("Error while processing order for spending points: %s", err.Error()), http.StatusInternalServerError)
+
+			if strings.Contains(err.Error(), "violates check constraint \"valid_sum\"") {
+				http.Error(rw, fmt.Sprintf("Users's balance is not enough: %s", err.Error()), http.StatusPaymentRequired)
+				GM.logger.Errorln("Users's balance is not enough: ", err.Error())
+				return
+			}
+
+			http.Error(rw, fmt.Sprintf("Error while processing order for spending points: %s, the result is: %v", err.Error(), strings.Contains(err.Error(), "violates check constraint \"valid_sum\"")), http.StatusInternalServerError)
 			GM.logger.Errorln("Error while processing order for spending points: ", err.Error())
 			return
 		}
