@@ -23,7 +23,7 @@ func (db *PostgreSQL) AddNewOrder(login string, orderNumber int) (err error) {
 
 	var id int
 
-	rows, err := db.dbConn.Query("SELECT order_id FROM orders JOIN users ON user_id=users.id WHERE users.login=$1", login)
+	rows, err := db.dbConn.Query("SELECT orders.id FROM orders JOIN users ON user_id=users.id WHERE users.login=$1", login)
 	if err != nil {
 		return
 	}
@@ -43,7 +43,7 @@ func (db *PostgreSQL) AddNewOrder(login string, orderNumber int) (err error) {
 	if err != nil {
 		return
 	}
-	row := db.dbConn.QueryRow("SELECT user_id from orders WHERE order_id=$1", orderNumber)
+	row := db.dbConn.QueryRow("SELECT user_id from orders WHERE id=$1", orderNumber)
 	err = row.Scan(&id)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return

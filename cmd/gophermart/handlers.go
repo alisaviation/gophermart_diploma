@@ -30,6 +30,12 @@ func (GM *Gophermarket) RegisterUser() http.HandlerFunc {
 			return
 		}
 
+		if (user.Login == "") || (user.Password == "") {
+			http.Error(rw, "Error while getting user credentials", http.StatusBadRequest)
+			GM.logger.Errorf("Error while getting user credentials")
+			return
+		}
+
 		err = GM.storage.CheckUserLogin(user.Login)
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("Error while checking user login: %s", err), http.StatusConflict)
@@ -85,6 +91,12 @@ func (GM *Gophermarket) AuthentificateUser() http.HandlerFunc {
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("Error while unmarshalling request body for processing user: %s", err.Error()), http.StatusInternalServerError)
 			GM.logger.Errorf("Error while unmarshalling request body for processing new order: ", err.Error())
+			return
+		}
+
+		if (user.Login == "") || (user.Password == "") {
+			http.Error(rw, "Error while getting user credentials", http.StatusBadRequest)
+			GM.logger.Errorf("Error while getting user credentials")
 			return
 		}
 
@@ -179,7 +191,7 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 		}
 
 		if !add.CheckOrderNumber(orderNumber) {
-			http.Error(rw, "Order number is invalid", http.StatusPaymentRequired)
+			http.Error(rw, "Order number is invalid", http.StatusUnprocessableEntity)
 			GM.logger.Errorln("Order number is invalid")
 			return
 		}
