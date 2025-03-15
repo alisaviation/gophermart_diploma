@@ -32,16 +32,10 @@ func (GM *Gophermarket) MiddlewareCheckUser(h http.HandlerFunc) http.HandlerFunc
 			return
 		}
 
-		ok, err := GM.storage.CheckUser(claims.UserLogin, claims.UserPassword)
-		if !ok {
+		err = GM.storage.CheckUserJWT(claims.UserLogin)
+		if err != nil {
 			http.Error(rw, "User is not anuthorized", http.StatusUnauthorized)
 			GM.logger.Errorf("User is not anuthorized")
-			return
-		}
-
-		if err != nil {
-			http.Error(rw, "Error while authorizing user", http.StatusInternalServerError)
-			GM.logger.Errorf("Error while authorizing user")
 			return
 		}
 

@@ -15,6 +15,8 @@ type StorageInterface interface {
 
 	CheckUser(login, password string) (bool, error)
 
+	CheckUserJWT(login string) (error)
+
 	GetUserBalance(login string) (add.Balance, error)
 
 	GetAllOrders(orders *[]add.Order, login string) error

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	add "github.com/Tanya1515/gophermarket/cmd/additional"
@@ -172,7 +173,7 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 	addOrdersInfobyUser := func(rw http.ResponseWriter, r *http.Request) {
 		var buf bytes.Buffer
 		var err error
-		var orderNumber int
+		var orderNumberIn string
 
 		login := r.Context().Value("userLogin")
 
@@ -183,13 +184,18 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 			return
 		}
 
-		err = json.Unmarshal(buf.Bytes(), &orderNumber)
+		err = json.Unmarshal(buf.Bytes(), &orderNumberIn)
 		if err != nil {
 			http.Error(rw, fmt.Sprintf("Error while unmarshalling request body for processing new order: %s", err.Error()), http.StatusInternalServerError)
 			GM.logger.Errorf("Error while unmarshalling request body for processing new order: ", err.Error())
 			return
 		}
-
+		orderNumber, err := strconv.Atoi(orderNumberIn)
+		if err != nil {
+			http.Error(rw, "", http.StatusInternalServerError)
+			GM.logger.Errorln("Error while converting orderNumber to int")
+			return
+		}
 		if !add.CheckOrderNumber(orderNumber) {
 			http.Error(rw, "Order number is invalid", http.StatusUnprocessableEntity)
 			GM.logger.Errorln("Order number is invalid")
@@ -296,7 +302,14 @@ func (GM *Gophermarket) PayByPoints() http.HandlerFunc {
 			return
 		}
 
-		if !add.CheckOrderNumber(order.Number) {
+		orderNumber, err := strconv.Atoi(order.Number)
+		if err != nil {
+			http.Error(rw, "", http.StatusInternalServerError)
+			GM.logger.Errorln("Error while converting orderNumber to int")
+			return
+		}
+
+		if !add.CheckOrderNumber(orderNumber) {
 			http.Error(rw, "Order number is invalid", http.StatusUnprocessableEntity)
 			GM.logger.Errorln("Order number is invalid")
 			return

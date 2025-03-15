@@ -105,6 +105,16 @@ func (db *PostgreSQL) CheckUserLogin(login string) error {
 	return nil
 }
 
+func (db *PostgreSQL) CheckUserJWT(login string) (err error) {
+	var value string
+
+	row := db.dbConn.QueryRow("SELECT login FROM users WHERE login = $1", login)
+
+	err = row.Scan(&value)
+
+	return
+}
+
 func (db *PostgreSQL) CheckUser(login, password string) (ok bool, err error) {
 	ok = true
 	row := db.dbConn.QueryRow(`SELECT (password = crypt($1, password)) 

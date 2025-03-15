@@ -26,13 +26,13 @@ const (
 )
 
 type OrderSpend struct {
-	Number       int       `json:"order"`
+	Number       string    `json:"order"`
 	Sum          float64   `json:"sum"`
 	Processed_at time.Time `json:"processed_at"`
 }
 
 type Order struct {
-	Number      int       `json:"number"`
+	Number      string    `json:"number"`
 	Status      Status    `json:"status"`
 	Accrual     float64   `json:"accrual"`
 	Uploaded_at time.Time `json:"uploaded_at"`
