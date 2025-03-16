@@ -40,6 +40,10 @@ func GetDb(log *zap.Logger, dsn string) (DBI, *models.Error) {
 		return nil, utils.Error(err, http.StatusInternalServerError)
 	}
 
+	err = db.Migrator().DropTable(&models.DBUser{}, &models.DBOrder{}, &models.DBWithdrawal{})
+	if err != nil {
+		return nil, utils.Error(err, http.StatusInternalServerError)
+	}
 	err = db.AutoMigrate(&models.DBUser{}, &models.DBOrder{}, &models.DBWithdrawal{})
 	if err != nil {
 		return nil, utils.Error(err, http.StatusInternalServerError)
