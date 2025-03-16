@@ -32,7 +32,7 @@ func InitConfig() (ConfigI, *models.Error) {
 	flag.StringVar(&envVar.DataBaseURL, "d", "", "data base url to rub db")
 	flag.StringVar(&envVar.AccuralSystemAddress, "r", "", "accrual system address")
 	flag.StringVar(&envVar.RootUrl, "u", "/api/user", "root url")
-	flag.BoolVar(&envVar.IsMockReq, "m", false, "is mocked request")
+	flag.StringVar(&envVar.Secret, "s", "secret12345", "secret key")
 
 	flag.Parse()
 

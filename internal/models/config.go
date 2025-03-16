@@ -6,5 +6,4 @@ type EnvVariables struct {
 	AccuralSystemAddress string `env:"ACCURAL_SYSTEM_ADDRESS"`
 	DataBaseURL          string `env:"DATABASE_URI"`
 	Secret               string `env:"SECRET_KEY"`
-	IsMockReq            bool   `env:"IS_MOCK_REQ"`
 }
