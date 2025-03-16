@@ -20,17 +20,17 @@ type DBI interface {
 	Register(value *models.DBUser) (*models.DBUser, *models.Error)
 	Login(value *models.DBUser) (*models.DBUser, *models.Error)
 	GetUser(userID uint) (*models.DBUser, *models.Error)
+
 	PostOrders(order *models.DBOrder) *models.Error
 	GetOrders(id *uint) (*[]models.DBOrder, *models.Error)
-	GetOrder(id *uint, orderNumber int64) (*models.DBOrder, *models.Error)
+	GetOrder(orderNumber string) (*models.DBOrder, *models.Error)
 
-	GetBalance(id *uint) (*models.DBBalance, *models.Error)
+	GetBalance(id *uint) (*models.Balance, *models.Error)
 
-	PostBalanceWithdraw(order *models.DBWithdrawal) *models.Error
+	GetWithdrawal(orderNumber string) (*models.DBWithdrawal, *models.Error)
+
 	GetWithdrawals(id *uint) (*[]models.DBWithdrawal, *models.Error)
-
-	DeductBalance(id *uint, amount float64) *models.Error
-	AddBalance(id *uint, amount float64) *models.Error
+	PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Error
 }
 
 func GetDb(log *zap.Logger, dsn string) (DBI, *models.Error) {
@@ -40,7 +40,7 @@ func GetDb(log *zap.Logger, dsn string) (DBI, *models.Error) {
 		return nil, utils.Error(err, http.StatusInternalServerError)
 	}
 
-	err = db.AutoMigrate(&models.DBUser{}, &models.DBOrder{}, &models.DBBalance{}, &models.DBWithdrawal{})
+	err = db.AutoMigrate(&models.DBUser{}, &models.DBOrder{}, &models.DBWithdrawal{})
 	if err != nil {
 		return nil, utils.Error(err, http.StatusInternalServerError)
 	}

@@ -23,13 +23,13 @@ func (db *DB) Login(value *models.DBUser) (*models.DBUser, *models.Error) {
 	defer db.mu.Unlock()
 	result := db.db.Where("login = ?", value.Login).First(&user)
 	if result.Error != nil {
-		return nil, utils.Error(result.Error, http.StatusInternalServerError)
+		return nil, utils.Error(result.Error, http.StatusUnauthorized)
 	}
 
 	if utils.CheckPassword(user.Password, value.Password) {
 		return &user, nil
 	}
-	return nil, utils.Error(errors.New("wrong password"), http.StatusInternalServerError)
+	return nil, utils.Error(errors.New("wrong password"), http.StatusUnauthorized)
 }
 
 func (db *DB) GetUser(id uint) (*models.DBUser, *models.Error) {

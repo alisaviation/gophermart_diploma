@@ -14,14 +14,16 @@ type Repository struct {
 type RepositoryI interface {
 	Register(value *models.User) (*models.DBUser, *models.Error)
 	Login(value *models.User) (*models.DBUser, *models.Error)
+
 	PostOrders(order *models.DBOrder) *models.Error
-	GetOrders(id *uint) (*[]models.DBOrder, *models.Error)
-	GetBalance(id *uint) (*models.DBBalance, *models.Error)
-	PostBalanceWithdraw(order *models.DBWithdrawal) *models.Error
-	GetWithdrawals(id *uint) (*[]models.DBWithdrawal, *models.Error)
-	GetOrder(id *uint, orderNumber int64) (*models.DBOrder, *models.Error)
-	AddBalance(id *uint, amount *float64) *models.Error
-	DeductBalance(id *uint, amount *float64) *models.Error
+	GetOrders(id *uint) (*[]models.Order, *models.Error)
+	GetOrder(orderNumber string) (*models.DBOrder, *models.Error)
+	GetWithdrawal(orderNumber string) (*models.DBWithdrawal, *models.Error)
+
+	GetBalance(id *uint) (*models.Balance, *models.Error)
+
+	GetWithdrawals(id *uint) (*[]models.Withdrawal, *models.Error)
+	PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Error
 }
 
 func GetRepository(conf config.ConfigI, db db.DBI) RepositoryI {

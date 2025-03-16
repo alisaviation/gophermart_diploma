@@ -14,9 +14,12 @@ type Handler struct {
 type HandlerI interface {
 	Login(c *gin.Context)
 	Register(c *gin.Context)
+
 	PostOrders(c *gin.Context)
 	GetOrders(c *gin.Context)
+
 	GetBalance(c *gin.Context)
+
 	PostBalanceWithdraw(c *gin.Context)
 	GetWithdrawals(c *gin.Context)
 }

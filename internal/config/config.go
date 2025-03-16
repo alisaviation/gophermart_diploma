@@ -30,7 +30,7 @@ func InitConfig() (ConfigI, *models.Error) {
 	var envVar models.EnvVariables
 	flag.StringVar(&envVar.RunAddress, "a", "", "host and port to run services")
 	flag.StringVar(&envVar.DataBaseURL, "d", "", "data base url to rub db")
-	flag.StringVar(&envVar.AccuralSystemAddress, "r", "", "accural system address")
+	flag.StringVar(&envVar.AccuralSystemAddress, "r", "", "accrual system address")
 	flag.StringVar(&envVar.RootUrl, "u", "/api/user", "root url")
 	flag.BoolVar(&envVar.IsMockReq, "m", false, "is mocked request")
 

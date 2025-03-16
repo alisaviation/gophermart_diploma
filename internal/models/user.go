@@ -2,7 +2,6 @@ package models
 
 import (
 	"github.com/golang-jwt/jwt/v5"
-	"time"
 )
 
 type CustomClaims struct {
@@ -21,17 +20,17 @@ type Error struct {
 	Code  int    `json:"code"`
 }
 
-// Work with clients
+// User Work with clients
 type User struct {
 	Login    string `json:"login"`
 	Password string `json:"password"`
 }
 
 type Order struct {
-	Number     int64     `json:"number"`
-	Status     string    `json:"status"`
-	Accrual    float64   `json:"accural"`
-	UploadedAt time.Time `json:"uploaded_at"`
+	Number     string  `json:"number"`
+	Status     string  `json:"status"`
+	Accrual    float64 `json:"accrual"`
+	UploadedAt string  `json:"uploaded_at"`
 }
 
 type Balance struct {
@@ -40,13 +39,13 @@ type Balance struct {
 }
 
 type Withdrawal struct {
-	Order      int64     `json:"order"`
-	Sum        float64   `json:"sum"`
-	UploadedAt time.Time `json:"uploaded_at"`
+	Number      string  `json:"order"`
+	Sum         float64 `json:"sum"`
+	ProcessedAt string  `json:"processed_at"`
 }
 
-type Accural struct {
-	Order   int64   `json:"order"`
+type Accrual struct {
+	Order   string  `json:"order"`
 	Status  string  `json:"status"`
-	Accural float64 `json:"accural"`
+	Accrual float64 `json:"accrual"`
 }

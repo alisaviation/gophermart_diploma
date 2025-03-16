@@ -8,9 +8,10 @@ import (
 	"net/http"
 )
 
-func GetAccrual(url string, num int64) (*models.Accural, *models.Error) {
-	var order *models.Accural
-	resp, err := http.Get(fmt.Sprintf("%s/api/orders/%v", url, num))
+func GetAccrual(url string, num string) (*models.Accrual, *models.Error) {
+	var order models.Accrual
+	resp, err := http.Get(fmt.Sprintf("%s/api/orders/%s", url, num))
+
 	if err != nil {
 		return nil, &models.Error{
 			Error: err.Error(),
@@ -19,7 +20,7 @@ func GetAccrual(url string, num int64) (*models.Accural, *models.Error) {
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
-	err = json.Unmarshal(body, order)
+	err = json.Unmarshal(body, &order)
 	if err != nil {
 		return nil, &models.Error{
 			Error: err.Error(),
@@ -27,5 +28,5 @@ func GetAccrual(url string, num int64) (*models.Accural, *models.Error) {
 		}
 	}
 
-	return order, nil
+	return &order, nil
 }

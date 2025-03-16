@@ -6,21 +6,12 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"net/http"
-	"strconv"
 )
 
 func (h *Handler) PostOrders(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Failed to read body")
-		return
-	}
-
-	// Convert string to int64
-	num, err := strconv.ParseInt(string(body), 10, 64)
-	if err != nil {
-		h.conf.GetLogger().Error("error", zap.Error(err))
-		c.JSON(500, err)
+		c.String(http.StatusUnprocessableEntity, "Failed to read body")
 		return
 	}
 
@@ -28,7 +19,7 @@ func (h *Handler) PostOrders(c *gin.Context) {
 
 	dbRequest := &models.DBOrder{
 		UserID: id,
-		Number: num,
+		Number: string(body),
 	}
 
 	localErr := h.serv.PostOrders(dbRequest)
@@ -37,6 +28,7 @@ func (h *Handler) PostOrders(c *gin.Context) {
 		c.JSON(localErr.Code, localErr.Error)
 		return
 	}
+	c.JSON(http.StatusAccepted, nil)
 }
 
 func (h *Handler) GetOrders(c *gin.Context) {
@@ -49,5 +41,5 @@ func (h *Handler) GetOrders(c *gin.Context) {
 	}
 
 	c.Header("Content-Type", "application/json")
-	c.JSON(200, *list)
+	c.JSON(http.StatusOK, *list)
 }

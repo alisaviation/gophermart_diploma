@@ -12,7 +12,7 @@ func (h *Handler) Register(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		h.conf.GetLogger().Error("error", zap.Error(err))
-		c.JSON(500, err)
+		c.JSON(http.StatusBadRequest, err)
 		return
 	}
 
@@ -35,7 +35,7 @@ func (h *Handler) Login(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		h.conf.GetLogger().Error("error", zap.Error(err))
-		c.JSON(500, err)
+		c.JSON(http.StatusBadRequest, err)
 		return
 	}
 
