@@ -29,11 +29,11 @@ func (s *Service) PostOrders(order *models.DBOrder) *models.Error {
 	}
 	var orderWithStatus *models.Accrual
 	s.conf.GetLogger().Info("try to get bonuses",
-		zap.String("AccuralSystemAddress: ", s.conf.GetEnvVariables().AccuralSystemAddress),
+		zap.String("AccrualSystemAddress: ", s.conf.GetEnvVariables().AccrualSystemAddress),
 		zap.String("DataBaseURL: ", s.conf.GetEnvVariables().DataBaseURL),
 		zap.String("RunAddress: ", s.conf.GetEnvVariables().RunAddress),
 	)
-	orderWithStatus, localError = utils.GetAccrual(s.conf.GetEnvVariables().AccuralSystemAddress, order.Number)
+	orderWithStatus, localError = utils.GetAccrual(s.conf, order.Number)
 
 	order.Status = orderWithStatus.Status
 	order.Accrual = &orderWithStatus.Accrual

@@ -30,7 +30,7 @@ func InitConfig() (ConfigI, *models.Error) {
 	var envVar models.EnvVariables
 	flag.StringVar(&envVar.RunAddress, "a", "", "host and port to run services")
 	flag.StringVar(&envVar.DataBaseURL, "d", "", "data base url to rub db")
-	flag.StringVar(&envVar.AccuralSystemAddress, "r", "", "accrual system address")
+	flag.StringVar(&envVar.AccrualSystemAddress, "r", "", "accrual system address")
 	flag.StringVar(&envVar.RootUrl, "u", "/api/user", "root url")
 	flag.StringVar(&envVar.Secret, "s", "secret12345", "secret key")
 
