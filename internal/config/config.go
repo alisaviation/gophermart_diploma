@@ -34,8 +34,6 @@ func InitConfig() (ConfigI, *models.Error) {
 	flag.StringVar(&envVar.RootUrl, "u", "/api/user", "root url")
 	flag.StringVar(&envVar.Secret, "s", "secret12345", "secret key")
 
-	flag.Parse()
-
 	err := env.Parse(&envVar)
 	if err != nil {
 		return nil, &models.Error{
@@ -43,6 +41,8 @@ func InitConfig() (ConfigI, *models.Error) {
 			Code:  http.StatusInternalServerError,
 		}
 	}
+
+	flag.Parse()
 
 	Log, _ := zap.NewProduction()
 	return Config{
