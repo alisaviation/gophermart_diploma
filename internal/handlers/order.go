@@ -11,6 +11,7 @@ import (
 func (h *Handler) PostOrders(c *gin.Context) {
 	body, err := io.ReadAll(c.Request.Body)
 	if err != nil {
+		h.conf.GetLogger().Error("try to get body from post orders", zap.Error(err))
 		c.String(http.StatusUnprocessableEntity, "Failed to read body")
 		return
 	}

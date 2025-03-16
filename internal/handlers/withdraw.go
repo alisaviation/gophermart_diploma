@@ -13,13 +13,13 @@ func (h *Handler) PostBalanceWithdraw(c *gin.Context) {
 	var req models.Withdrawal
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
-		h.conf.GetLogger().Error("error", zap.Error(err))
+		h.conf.GetLogger().Error("Error reading request body", zap.Error(err))
 		c.JSON(http.StatusUnprocessableEntity, "неверный номер заказа")
 		return
 	}
 	num, err := strconv.Atoi(req.Number)
 	if err != nil || luhn.Valid(num) {
-		h.conf.GetLogger().Error("error", zap.Error(err))
+		h.conf.GetLogger().Error("error to try check order number to luhn algorithm", zap.Error(err))
 		c.JSON(http.StatusUnprocessableEntity, "неверный номер заказа")
 		return
 	}
