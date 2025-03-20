@@ -2,6 +2,7 @@ package db
 
 import (
 	"github.com/rtmelsov/GopherMart/internal/models"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -28,6 +29,7 @@ func (db *DB) PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Error {
 
 	// так как данные по балансу не вложение
 	// меняем в объекте клиента данные баланса
+	db.conf.GetLogger().Info("to check user balance", zap.Float64("balance", user.Current))
 	user.Current -= withdrawal.Sum
 	if user.Current < 0 {
 		tx.Rollback()

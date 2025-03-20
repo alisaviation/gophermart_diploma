@@ -3,10 +3,8 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/rtmelsov/GopherMart/internal/models"
-	"github.com/theplant/luhn"
 	"go.uber.org/zap"
 	"net/http"
-	"strconv"
 )
 
 func (h *Handler) PostBalanceWithdraw(c *gin.Context) {
@@ -14,12 +12,6 @@ func (h *Handler) PostBalanceWithdraw(c *gin.Context) {
 	err := c.ShouldBindJSON(&req)
 	if err != nil {
 		h.conf.GetLogger().Error("Error reading request body", zap.Error(err))
-		c.JSON(http.StatusUnprocessableEntity, "неверный номер заказа")
-		return
-	}
-	num, err := strconv.Atoi(req.Number)
-	if err != nil || luhn.Valid(num) {
-		h.conf.GetLogger().Error("error to try check order number to luhn algorithm", zap.Error(err))
 		c.JSON(http.StatusUnprocessableEntity, "неверный номер заказа")
 		return
 	}

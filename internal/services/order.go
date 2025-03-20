@@ -8,7 +8,6 @@ import (
 )
 
 func (s *Service) PostOrders(order *models.DBOrder) *models.Error {
-	s.conf.GetLogger().Info("try to get order if exist", zap.String("order number: ", order.Number))
 	oldOrder, localError := s.repo.GetOrder(order.Number)
 	if localError == nil {
 		s.conf.GetLogger().Warn("order is exist")
@@ -24,6 +23,13 @@ func (s *Service) PostOrders(order *models.DBOrder) *models.Error {
 			Code:  http.StatusConflict,
 		}
 	}
+
+	s.conf.GetLogger().Info("try to get order if exist", zap.String("order number: ", order.Number))
+	localError = utils.PostAccrual(s.conf, order.Number)
+	if localError != nil {
+		return localError
+	}
+
 	if oldOrder != nil {
 		return localError
 	}

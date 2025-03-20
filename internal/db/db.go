@@ -1,9 +1,9 @@
 package db
 
 import (
+	"github.com/rtmelsov/GopherMart/internal/config"
 	"github.com/rtmelsov/GopherMart/internal/models"
 	"github.com/rtmelsov/GopherMart/internal/utils"
-	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"net/http"
@@ -11,9 +11,9 @@ import (
 )
 
 type DB struct {
-	db  *gorm.DB
-	log *zap.Logger
-	mu  sync.RWMutex
+	db   *gorm.DB
+	conf config.ConfigI
+	mu   sync.RWMutex
 }
 
 type DBI interface {
@@ -33,9 +33,9 @@ type DBI interface {
 	PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Error
 }
 
-func GetDb(log *zap.Logger, dsn string) (DBI, *models.Error) {
+func GetDb(conf config.ConfigI) (DBI, *models.Error) {
 	//dsn := "host=localhost user=gorm password=gorm dbname=gorm port=9920 sslmode=disable TimeZone=Asia/Shanghai"
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(conf.GetEnvVariables().DataBaseURL), &gorm.Config{})
 	if err != nil {
 		return nil, utils.Error(err, http.StatusInternalServerError)
 	}
@@ -50,8 +50,8 @@ func GetDb(log *zap.Logger, dsn string) (DBI, *models.Error) {
 	}
 
 	return &DB{
-		db:  db,
-		log: log,
-		mu:  sync.RWMutex{},
+		db:   db,
+		conf: conf,
+		mu:   sync.RWMutex{},
 	}, nil
 }

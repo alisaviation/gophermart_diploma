@@ -2,6 +2,7 @@ package services
 
 import (
 	"github.com/rtmelsov/GopherMart/internal/models"
+	"github.com/rtmelsov/GopherMart/internal/utils"
 	"net/http"
 )
 
@@ -19,6 +20,12 @@ func (s *Service) PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Err
 			Code:  http.StatusConflict,
 		}
 	}
+
+	localError = utils.PostAccrual(s.conf, withdrawal.OrderNumber)
+	if localError != nil {
+		return localError
+	}
+
 	if oldOrder != nil {
 		return localError
 	}
