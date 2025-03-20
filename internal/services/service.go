@@ -12,6 +12,8 @@ type Service struct {
 }
 
 type ServiceI interface {
+	ErrorHandler(err string, code int) *models.Error
+
 	Login(request *models.User) (*models.UserResponse, *models.Error)
 	Register(request *models.User) (*models.UserResponse, *models.Error)
 	PostOrders(order *models.DBOrder) *models.Error

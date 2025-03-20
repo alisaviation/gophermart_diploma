@@ -13,15 +13,9 @@ func (s *Service) PostOrders(order *models.DBOrder) *models.Error {
 		s.conf.GetLogger().Warn("order is exist")
 		if oldOrder.UserID == order.UserID {
 			s.conf.GetLogger().Warn("order belongs to another person")
-			return &models.Error{
-				Error: "",
-				Code:  http.StatusOK,
-			}
+			return s.ErrorHandler("this order is already assigned by you", http.StatusOK)
 		}
-		return &models.Error{
-			Error: "",
-			Code:  http.StatusConflict,
-		}
+		s.ErrorHandler("this order is already assigned to another user", http.StatusConflict)
 	}
 
 	s.conf.GetLogger().Info("try to get order if exist", zap.String("order number: ", order.Number))

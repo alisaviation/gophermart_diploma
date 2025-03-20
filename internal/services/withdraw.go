@@ -10,15 +10,10 @@ func (s *Service) PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Err
 	oldOrder, localError := s.repo.GetWithdrawal(withdrawal.OrderNumber)
 	if localError == nil {
 		if oldOrder.UserID == withdrawal.UserID {
-			return &models.Error{
-				Error: "",
-				Code:  http.StatusOK,
-			}
+			s.conf.GetLogger().Warn("order belongs to another person")
+			return s.ErrorHandler("this order is already assigned by you", http.StatusOK)
 		}
-		return &models.Error{
-			Error: "",
-			Code:  http.StatusConflict,
-		}
+		s.ErrorHandler("this order is already assigned to another user", http.StatusConflict)
 	}
 
 	localError = utils.PostAccrual(s.conf, withdrawal.OrderNumber)
