@@ -23,12 +23,18 @@ func (h *Handler) PostOrders(c *gin.Context) {
 		Number: string(body),
 	}
 
+	h.conf.GetLogger().Info("POST REQUEST --START", zap.String("ORDER NUMBER", dbRequest.Number))
+
 	localErr := h.serv.PostOrders(dbRequest)
+
 	if localErr != nil {
+		h.conf.GetLogger().Info("POST REQUEST END WITH ERROR", zap.String("ERROR TEXT", localErr.Error))
 		h.conf.GetLogger().Error("error", zap.String("error", localErr.Error))
 		c.JSON(localErr.Code, localErr.Error)
 		return
 	}
+
+	h.conf.GetLogger().Info("POST REQUEST END WITH SUCCESS")
 	c.JSON(http.StatusAccepted, nil)
 }
 
