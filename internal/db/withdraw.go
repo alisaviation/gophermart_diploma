@@ -29,7 +29,7 @@ func (db *DB) PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Error {
 
 	// так как данные по балансу не вложение
 	// меняем в объекте клиента данные баланса
-	db.conf.GetLogger().Info("to check user balance", zap.Float64("user balance", user.Current), zap.Float64("sum to subtract", withdrawal.Sum))
+	db.conf.GetLogger().Info("to change balance in postorderwithdraw", zap.Float64("user balance", user.Current), zap.Float64("sum to subtract", withdrawal.Sum))
 	user.Current -= withdrawal.Sum
 	if user.Current < 0 {
 		tx.Rollback()
