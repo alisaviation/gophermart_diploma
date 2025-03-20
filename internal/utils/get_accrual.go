@@ -35,7 +35,7 @@ func PostAccrual(conf config.ConfigI, num string) *models.Error {
 			Code:  http.StatusUnprocessableEntity,
 		}
 	}
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+	if resp.StatusCode != http.StatusConflict && resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
 		conf.GetLogger().Error("Accrual error", zap.Int("error while checking status", resp.StatusCode))
 		return &models.Error{
 			Error: "",
