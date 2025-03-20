@@ -9,10 +9,10 @@ func (db *DB) GetBalance(id *uint) (*models.Balance, *models.Error) {
 	var user *models.DBUser
 	result := db.db.First(&user, id)
 	if result.Error != nil {
-		return nil, &models.Error{
-			Error: result.Error.Error(),
-			Code:  http.StatusInternalServerError,
-		}
+		return nil, db.ErrorHandler(
+			result.Error.Error(),
+			http.StatusInternalServerError,
+		)
 	}
 
 	return &models.Balance{

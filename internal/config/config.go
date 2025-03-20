@@ -5,7 +5,9 @@ import (
 	"github.com/caarlos0/env/v6"
 	"github.com/rtmelsov/GopherMart/internal/models"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"net/http"
+	"os"
 )
 
 type Config struct {
@@ -44,7 +46,28 @@ func InitConfig() (ConfigI, *models.Error) {
 
 	flag.Parse()
 
-	Log, _ := zap.NewProduction()
+	// Define a custom encoder with color support
+	encoderConfig := zapcore.EncoderConfig{
+		TimeKey:       "time",
+		LevelKey:      "level",
+		NameKey:       "logger",
+		CallerKey:     "caller",
+		MessageKey:    "msg",
+		StacktraceKey: "stacktrace",
+		EncodeTime:    zapcore.ISO8601TimeEncoder,
+		EncodeLevel:   zapcore.CapitalColorLevelEncoder, // Enables colors
+		EncodeCaller:  zapcore.ShortCallerEncoder,
+	}
+
+	// Use a console encoder for readable logs
+	consoleEncoder := zapcore.NewConsoleEncoder(encoderConfig)
+
+	// Create a core that writes to stdout
+	core := zapcore.NewCore(consoleEncoder, zapcore.Lock(os.Stdout), zapcore.DebugLevel)
+
+	// Build the logger
+	Log := zap.New(core, zap.AddCaller())
+
 	return Config{
 		Logger:       Log,
 		EnvVariables: &envVar,

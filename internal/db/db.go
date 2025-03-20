@@ -17,6 +17,8 @@ type DB struct {
 }
 
 type DBI interface {
+	ErrorHandler(err string, code int) *models.Error
+
 	Register(value *models.DBUser) (*models.DBUser, *models.Error)
 	Login(value *models.DBUser) (*models.DBUser, *models.Error)
 	GetUser(userID uint) (*models.DBUser, *models.Error)
