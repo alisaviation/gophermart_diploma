@@ -17,7 +17,7 @@ func (db *DB) GetBalance(id *uint) (*models.Balance, *models.Error) {
 	}
 
 	return &models.Balance{
-		Current:  utils.ToFixed(user.Current, 4),
-		Withdraw: utils.ToFixed(user.Withdraw, 4),
+		Current:   utils.ToFixed(user.Current, 4),
+		Withdrawn: utils.ToFixed(user.Withdrawn, 4),
 	}, nil
 }

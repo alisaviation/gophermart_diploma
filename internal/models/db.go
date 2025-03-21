@@ -7,7 +7,7 @@ type DBUser struct {
 	Login       string         `gorm:"unique;not null"`
 	Password    string         `gorm:"not null"`
 	Current     float64        `gorm:"current"`           // Баланс клиента
-	Withdraw    float64        `gorm:"withdrawn"`         // Сумма списания у клиента
+	Withdrawn   float64        `gorm:"withdrawn"`         // Сумма списания у клиента
 	Orders      []DBOrder      `gorm:"foreignKey:UserID"` // Один пользователь => много заказов
 	Withdrawals []DBWithdrawal `gorm:"foreignKey:UserID"` // Один пользователь => много списаний
 }
