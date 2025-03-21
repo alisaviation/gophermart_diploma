@@ -8,6 +8,7 @@ import (
 	"github.com/rtmelsov/GopherMart/internal/models"
 	"go.uber.org/zap"
 	"io"
+	"log"
 	"net/http"
 )
 
@@ -56,7 +57,13 @@ func GetAccrual(conf config.ConfigI, num string) (*models.Accrual, *models.Error
 			Code:  http.StatusInternalServerError,
 		}
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("failed to close request body: %v", err)
+		}
+	}()
+
 	body, err := io.ReadAll(resp.Body)
 	conf.GetLogger().Info("body from accrual", zap.String("body", string(body)))
 	err = json.Unmarshal(body, &order)
