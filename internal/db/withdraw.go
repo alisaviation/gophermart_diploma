@@ -38,7 +38,7 @@ func (db *DB) PostOrderWithDraw(withdrawal *models.DBWithdrawal) *models.Error {
 			http.StatusPaymentRequired,
 		)
 	}
-	//user.Withdraw += withdrawal.Sum
+	user.Withdraw += withdrawal.Sum
 
 	// дальше сохранение данных по балансу в таблице клиента
 	if err := tx.Save(&user).Error; err != nil {
