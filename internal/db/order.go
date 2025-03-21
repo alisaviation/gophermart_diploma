@@ -29,7 +29,7 @@ func (db *DB) PostOrders(order *models.DBOrder) *models.Error {
 
 	// так как данные по балансу не вложение
 	// меняем в объекте клиента данные баланса
-	db.conf.GetLogger().Info("to change balance in postorder", zap.Float64("user balance", user.Current), zap.Float64("sum to subtract", *order.Accrual))
+	db.conf.GetLogger().Info("to change balance in postorder", zap.Float64("user balance", user.Current), zap.Float64("sum to add", *order.Accrual))
 	user.Current += *order.Accrual
 
 	// дальше сохранение данных по балансу в таблице клиента
