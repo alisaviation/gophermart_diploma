@@ -66,6 +66,9 @@ func GetAccrual(conf config.ConfigI, num string) (*models.Accrual, *models.Error
 			Code:  http.StatusInternalServerError,
 		}
 	}
+	if order.Accrual == 0 {
+		order.Status = "PROCESSING"
+	}
 
 	return &order, nil
 }
