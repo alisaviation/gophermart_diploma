@@ -1,6 +1,7 @@
 package additional
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -38,6 +39,12 @@ type Order struct {
 	Uploaded_at time.Time `json:"uploaded_at"`
 }
 
+type OrderAcc struct {
+	Order   string  `json:"order"`
+	Accrual float64 `json:"accrual"`
+	Status  Status  `json:"status"`
+}
+
 const TOKEN_EXP = time.Hour
 
 type Claims struct {
@@ -64,13 +71,17 @@ func GenerateToken(user User, secretKey string) (JWTtoken string, err error) {
 	return
 }
 
-func CheckOrderNumber(orderNumber int) bool {
-	var num, sum int
-	arrayDigits := make([]int, 0, 10)
+func CheckOrderNumber(orderNumber string) bool {
+	var num, sum int64
+	arrayDigits := make([]int64, 0, 10)
 
-	for orderNumber > 0 {
-		num = orderNumber % 10
-		orderNumber = orderNumber / 10
+	res64, err := strconv.ParseInt(orderNumber, 10, 64)
+	if err != nil {
+		panic(err)
+	}
+	for res64 > 0 {
+		num = res64 % 10
+		res64 = res64 / 10
 		arrayDigits = append(arrayDigits, num)
 	}
 
@@ -89,5 +100,4 @@ func CheckOrderNumber(orderNumber int) bool {
 	} else {
 		return false
 	}
-
 }

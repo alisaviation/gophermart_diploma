@@ -1,28 +1,88 @@
 package storage
 
-import(
-	add "github.com/Tanya1515/gophermarket/cmd/additional" 
+import (
+	add "github.com/Tanya1515/gophermarket/cmd/additional"
+	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 )
 
-func (db *PostgreSQL) FinishUserOrder(order add.Order) (err error) {
-	// проверяем статус заказа, если INVALID - записываем в базу
+func (db *PostgreSQL) ProcessAccOrder(order add.Order) (err error) {
+	var userId int
+	tx, err := db.dbConn.Begin()
+	if err != nil {
+		return
+	}
 
-	// если статус заказа - PROCESSED и есть accrual: 
-	// join по id пользователя, выбирая заказ по его номеру и увеличиваем сумму баллов на балансе
-	// пользователя 
-	
-	// сохраняем статус заказа
+	if (order.Status == "PROCESSED") || (order.Accrual > 0) {
+		row := tx.QueryRow("SELECT user_id FROM orders WHERE id=$1", order.Number)
+		err = row.Scan(&userId)
+		if err != nil {
+			tx.Rollback()
+			return
+		}
 
-	// убираем заказ из мапы
-	return 
+		_, err = tx.Exec("UPDATE users SET sum=sum+$1 WHERE id=$2", order.Accrual, userId)
+		if err != nil {
+			tx.Rollback()
+			return
+		}
+
+	}
+
+	_, err = tx.Exec("UPDATE orders SET status=$1 WHERE id=$2", order.Status, order.Number)
+	if err != nil {
+		tx.Rollback()
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		tx.Rollback()
+		return
+	}
+
+	return
 }
 
-func (db *PostgreSQL) StartProcessingUserOrder(orders *[]add.Order) (err error) {
+func (db *PostgreSQL) StartProcessingUserOrder(logger zap.SugaredLogger, result chan add.OrderAcc) {
 
-	// вытаскиваем из базы данных новые заказы (со статусом NEW)
-	// меняем статус всех заказов на processing
+	var order add.OrderAcc
+	g := new(errgroup.Group)
 
-	// возвращаем новые заказы
-	
-	return
+	for {
+		rows, err := db.dbConn.Query("SELECT id, accrual FROM orders WHERE status=$1", "NEW")
+		if err != nil {
+			logger.Errorf("Error while getting new orders: ", err)
+			continue
+		}
+
+		for rows.Next() {
+
+			err := rows.Scan(&order.Order, &order.Accrual)
+			if err != nil {
+				logger.Errorf("Error while scanning new order: ", err)
+			}
+
+			g.Go(func() error {
+
+				order.Status = "PROCESSING"
+				_, err = db.dbConn.Exec("UPDATE orders SET status=$1 WHERE id=$2", order.Status, order.Order)
+				if err != nil {
+					return err
+				}
+				result <- order
+				return nil
+			})
+		}
+
+		err = rows.Err()
+		if err != nil {
+			logger.Errorf("Error while reading rows of new orders: ", err)
+		}
+
+		rows.Close()
+		if err := g.Wait(); err != nil {
+			logger.Errorf("Error from goroutine: ", err)
+		}
+	}
 }

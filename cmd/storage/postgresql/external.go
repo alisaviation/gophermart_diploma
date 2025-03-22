@@ -19,9 +19,9 @@ func (db *PostgreSQL) RegisterNewUser(user add.User) error {
 	return nil
 }
 
-func (db *PostgreSQL) AddNewOrder(login string, orderNumber int) (err error) {
+func (db *PostgreSQL) AddNewOrder(login string, orderNumber string) (err error) {
 
-	var id int
+	var id string
 
 	rows, err := db.dbConn.Query("SELECT orders.id FROM orders JOIN users ON user_id=users.id WHERE users.login=$1", login)
 	if err != nil {
@@ -35,7 +35,7 @@ func (db *PostgreSQL) AddNewOrder(login string, orderNumber int) (err error) {
 			return
 		}
 		if id == orderNumber {
-			return fmt.Errorf("the order with number %d is in the system", orderNumber)
+			return fmt.Errorf("the order with number %s is in the system", orderNumber)
 		}
 	}
 
@@ -50,7 +50,7 @@ func (db *PostgreSQL) AddNewOrder(login string, orderNumber int) (err error) {
 	}
 
 	if err == nil {
-		return fmt.Errorf("error: order with number %d already exists and belongs to another user", orderNumber)
+		return fmt.Errorf("error: order with number %s already exists and belongs to another user", orderNumber)
 	}
 
 	_, err = db.dbConn.Exec("INSERT INTO orders (id, status, accrual, uploaded_at, user_id) VALUES($1, $2, $3, $4, (SELECT id FROM users WHERE users.login=$5))", orderNumber, "NEW", 0, time.Now().Format(time.RFC3339), login)

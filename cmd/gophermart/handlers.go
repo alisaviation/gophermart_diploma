@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
-	"strconv"
 	"strings"
 
 	add "github.com/Tanya1515/gophermarket/cmd/additional"
@@ -171,38 +171,41 @@ func (GM *Gophermarket) GetOrdersInfobyUser() http.HandlerFunc {
 
 func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 	addOrdersInfobyUser := func(rw http.ResponseWriter, r *http.Request) {
-		var buf bytes.Buffer
+		// var buf bytes.Buffer
 		var err error
-		var orderNumberIn string
 
 		login := r.Context().Value("userLogin")
 
-		_, err = buf.ReadFrom(r.Body)
-		if err != nil {
-			http.Error(rw, fmt.Sprintf("Error while reading order number for processing it: %s", err.Error()), http.StatusBadRequest)
-			GM.logger.Errorf("Error while reading order number for processing it: ", err.Error())
-			return
-		}
+		// _, err = buf.ReadFrom(r.Body)
+		// if err != nil {
+		// 	http.Error(rw, fmt.Sprintf("Error while reading order number for processing it: %s", err.Error()), http.StatusBadRequest)
+		// 	GM.logger.Errorf("Error while reading order number for processing it: ", err.Error())
+		// 	return
+		// }
 
-		err = json.Unmarshal(buf.Bytes(), &orderNumberIn)
+		// err = json.Unmarshal(buf.Bytes(), &order)
+		// if err != nil {
+		// 	http.Error(rw, fmt.Sprintf("Error while unmarshalling request body for processing new order: %s", err.Error()), http.StatusInternalServerError)
+		// 	GM.logger.Errorf("Error while unmarshalling request body for processing new order: ", err.Error())
+		// 	return
+		// }
+
+		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("Error while unmarshalling request body for processing new order: %s", err.Error()), http.StatusInternalServerError)
-			GM.logger.Errorf("Error while unmarshalling request body for processing new order: ", err.Error())
+			http.Error(rw, "Unable to read request body", http.StatusInternalServerError)
 			return
 		}
-		orderNumber, err := strconv.Atoi(orderNumberIn)
-		if err != nil {
-			http.Error(rw, "", http.StatusInternalServerError)
-			GM.logger.Errorln("Error while converting orderNumber to int")
-			return
-		}
-		if !add.CheckOrderNumber(orderNumber) {
+		defer r.Body.Close()
+
+		orderID := string(body)
+
+		if !add.CheckOrderNumber(orderID) {
 			http.Error(rw, "Order number is invalid", http.StatusUnprocessableEntity)
 			GM.logger.Errorln("Order number is invalid")
 			return
 		}
 
-		err = GM.storage.AddNewOrder(login.(string), orderNumber)
+		err = GM.storage.AddNewOrder(login.(string), orderID)
 		if err != nil {
 			if strings.Contains(err.Error(), "error: order with number") {
 				http.Error(rw, err.Error(), http.StatusConflict)
@@ -218,7 +221,7 @@ func (GM *Gophermarket) AddOrdersInfobyUser() http.HandlerFunc {
 
 		rw.WriteHeader(http.StatusAccepted)
 
-		rw.Write([]byte(fmt.Sprintf("New order %d is processing", orderNumber)))
+		rw.Write([]byte(fmt.Sprintf("New order %s is processing", orderID)))
 	}
 	return http.HandlerFunc(addOrdersInfobyUser)
 }
@@ -302,14 +305,7 @@ func (GM *Gophermarket) PayByPoints() http.HandlerFunc {
 			return
 		}
 
-		orderNumber, err := strconv.Atoi(order.Number)
-		if err != nil {
-			http.Error(rw, "", http.StatusInternalServerError)
-			GM.logger.Errorln("Error while converting orderNumber to int")
-			return
-		}
-
-		if !add.CheckOrderNumber(orderNumber) {
+		if !add.CheckOrderNumber(order.Number) {
 			http.Error(rw, "Order number is invalid", http.StatusUnprocessableEntity)
 			GM.logger.Errorln("Order number is invalid")
 			return

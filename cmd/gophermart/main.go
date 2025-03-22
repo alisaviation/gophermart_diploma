@@ -4,45 +4,52 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 
 	_ "github.com/Tanya1515/gophermarket/cmd/additional"
+	acc "github.com/Tanya1515/gophermarket/cmd/intAccrual"
 	storage "github.com/Tanya1515/gophermarket/cmd/storage"
 	psql "github.com/Tanya1515/gophermarket/cmd/storage/postgresql"
 )
 
 type Gophermarket struct {
-	storage storage.StorageInterface
-	logger  zap.SugaredLogger
+	storage   storage.StorageInterface
+	logger    zap.SugaredLogger
 	secretKey string
 }
 
 func init() {
 	marketAddressFlag = flag.String("a", "localhost:8081", "gophermarket address")
 	storageUrlFlag = flag.String("d", "localhost:5432", "database url")
-	// accrualSystemAddressFlag = flag.String("r", "localhost:8081", "acccrual system address")
+	accrualSystemAddressFlag = flag.String("r", "localhost:8080", "acccrual system address")
+	accrualLimitFlag = flag.Int("l", 100, "request limits for accrual system")
 }
 
 var (
-	marketAddressFlag *string
-	storageUrlFlag    *string
-	// accrualSystemAddressFlag *string
+	marketAddressFlag        *string
+	storageUrlFlag           *string
+	accrualSystemAddressFlag *string
+	accrualLimitFlag         *int
 )
 
 func main() {
 	var GM Gophermarket
+
+	var Accrual acc.AccrualSystem
+
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		panic(err)
 	}
 	MarketLogger := *logger.Sugar()
 
-	GM.logger = MarketLogger
+	loggerApp := MarketLogger
 
-	defer GM.logger.Sync()
+	defer loggerApp.Sync()
 
 	flag.Parse()
 
@@ -50,7 +57,7 @@ func main() {
 	if !ok {
 		marketAddress = *marketAddressFlag
 	}
-
+	// dsn-формат
 	storageAddress, ok := os.LookupEnv("DATABASE_URI")
 	if !ok {
 		storageAddress = *storageUrlFlag
@@ -58,22 +65,43 @@ func main() {
 
 	storageAddressArgs := strings.Split(storageAddress, ":")
 
-	// accrualSystemAddress, ok := os.LookupEnv("ACCRUAL_SYSTEM_ADDRESS")
-	// if !ok {
-	// 	accrualSystemAddress = *accrualSystemAddressFlag
-	// }
+	accrualSystemAddress, ok := os.LookupEnv("ACCRUAL_SYSTEM_ADDRESS")
+	if !ok {
+		accrualSystemAddress = *accrualSystemAddressFlag
+	}
 
-	GM.storage = &psql.PostgreSQL{Address: storageAddressArgs[0], Port: storageAddressArgs[1], UserName: "collector", Password: "postgres", DBName: "gophermarket"}
+	accrualLimits := *accrualLimitFlag
+	limits, ok := os.LookupEnv("ACCRUAL_LIMIT_REQUESTS")
+	if ok {
+		accrualLimits, err = strconv.Atoi(limits)
+		if err != nil {
+			GM.logger.Error("Error while converting accrualLimits from string to integer")
+		}
+	}
+
+	Storage := &psql.PostgreSQL{Address: storageAddressArgs[0], Port: storageAddressArgs[1], UserName: "collector", Password: "postgres", DBName: "gophermarket"}
+
+	GM.storage = Storage
+	GM.logger = loggerApp
+
+	Accrual.Logger = loggerApp
+	Accrual.Storage = Storage
+	Accrual.AccrualAddress = accrualSystemAddress
+	Accrual.Limit = accrualLimits
+
 	err = GM.storage.Init()
 	if err != nil {
 		panic(err)
 	}
+
 	GM.logger.Infow(
 		"Gophermarket starts working",
 		"address: ", marketAddress,
 	)
 
 	GM.secretKey = "secretKey"
+
+	go Accrual.AccrualMain()
 
 	r := chi.NewRouter()
 
