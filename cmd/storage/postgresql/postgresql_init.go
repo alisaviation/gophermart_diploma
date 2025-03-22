@@ -3,7 +3,6 @@ package storage
 import (
 	"database/sql"
 	"fmt"
-	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -31,7 +30,6 @@ func (db *PostgreSQL) Init() error {
 	db.dbConn.Exec("DROP TABLE users;")
 	db.dbConn.Exec("DROP TABLE order_spend;")
 	db.dbConn.Exec("DROP TYPE status_enum;")
-	time.Sleep(10)
 
 	_, err = db.dbConn.Exec(`CREATE EXTENSION pgcrypto;`)
 	if err != nil {
