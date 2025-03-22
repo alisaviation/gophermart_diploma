@@ -10,13 +10,18 @@ import (
 )
 
 type AccrualSystem struct {
-	AccrualAddress string
-	Storage        storage.StorageInterface
-	Limit          int
-	Logger         zap.SugaredLogger
+	AccrualAddress   string
+	Storage          storage.StorageInterface
+	Limit            int
+	Logger           zap.SugaredLogger
+	SemaphoreAccrual *Semaphore
 }
 
 func (ac *AccrualSystem) AccrualMain() {
+	semaphoreAccrual := NewSemaphore(ac.Limit)
+
+	ac.SemaphoreAccrual = semaphoreAccrual
+
 	processOrderChan := make(chan add.OrderAcc, ac.Limit)
 	orderIdChan := make(chan string, ac.Limit)
 	resultOrderChan := make(chan add.OrderAcc, ac.Limit)

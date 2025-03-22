@@ -9,7 +9,6 @@ import (
 	add "github.com/Tanya1515/gophermarket/cmd/additional"
 )
 
-// ограниение по количеству запросов? (либо через цикл, либо через семафоры)
 func (ac *AccrualSystem) SendOrder(inputChan chan add.OrderAcc, resultChan chan string) {
 
 	for order := range inputChan {
@@ -22,6 +21,8 @@ func (ac *AccrualSystem) SendOrder(inputChan chan add.OrderAcc, resultChan chan 
 			if err != nil {
 				ac.Logger.Errorf("Error while marshalling order %s: %s", order.Order, err)
 			}
+			ac.SemaphoreAccrual.Lock()
+			defer ac.SemaphoreAccrual.Acquire()
 			for {
 				_, err = client.R().SetHeader("Content-Type", "application/json").
 					SetBody(ordersByte).
@@ -43,7 +44,6 @@ func (ac *AccrualSystem) SendOrder(inputChan chan add.OrderAcc, resultChan chan 
 	}
 }
 
-// ограничение запросов (семафоры)
 func (ac *AccrualSystem) GetOrderFromAccrual(inputChan chan string, resultChan chan add.OrderAcc) {
 
 	var order add.OrderAcc
@@ -53,7 +53,8 @@ func (ac *AccrualSystem) GetOrderFromAccrual(inputChan chan string, resultChan c
 
 		go func() {
 			client := resty.New()
-
+			ac.SemaphoreAccrual.Lock()
+			defer ac.SemaphoreAccrual.Acquire()
 			for {
 				resp, err := client.R().Get("http://" + ac.AccrualAddress + "/api/orders/" + orderId)
 
@@ -65,7 +66,7 @@ func (ac *AccrualSystem) GetOrderFromAccrual(inputChan chan string, resultChan c
 
 				err = json.Unmarshal(resp.Body(), &order)
 				if err != nil {
-					// ac.Logger.Errorf("Error while unmarshalling order %s: %s", order.Order, err)
+					ac.Logger.Errorf("Error while unmarshalling order %s: %s", order.Order, err)
 				}
 
 				if (order.Status == "PROCESSED") || (order.Status == "INVALID") {
