@@ -123,3 +123,26 @@ func (s *PostgresStorage) CreateOrder(ctx context.Context, authorID int, orderID
 	}
 	return nil
 }
+
+func (s *PostgresStorage) GetOrdersFromUser(ctx context.Context, userID int) ([]int, error) {
+	var orders []int
+	rows, err := s.db.QueryContext(ctx, "SELECT order_num FROM orders WHERE author_id = $1", userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var orderNum int
+		if err := rows.Scan(&orderNum); err != nil {
+			return nil, err
+		}
+		orders = append(orders, orderNum)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return orders, nil
+}
