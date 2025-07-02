@@ -22,3 +22,12 @@ func (r *UserRepoPG) IsLoginExist(login string) (bool, error) {
 	err := r.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE login=$1)`, login).Scan(&exists)
 	return exists, err
 }
+
+func (r *UserRepoPG) GetUserByLogin(login string) (*User, error) {
+	var u User
+	err := r.db.QueryRow(`SELECT id, login, password_hash, created_at FROM users WHERE login=$1`, login).Scan(&u.ID, &u.Login, &u.PasswordHash, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
