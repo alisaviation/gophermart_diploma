@@ -12,18 +12,22 @@ import (
 	"github.com/alisaviation/internal/gophermart/models"
 )
 
+var (
+	ErrLoginTaken         = errors.New("login already taken")
+	ErrInvalidCredentials = errors.New("invalid credentials")
+)
+
 type AuthService interface {
 	Register(login, password string) (string, error)
-	//Login(login, password string) (string, error)
+	Login(login, password string) (string, error)
 }
 
 type authService struct {
-	userRepo   database.UserRepository
+	userRepo   database.User
 	jwtService JWTServiceInterface
-	//jwtService *JWTService
 }
 
-func NewAuthService(userRepo database.UserRepository, jwtSecret string) AuthService {
+func NewAuthService(userRepo database.User, jwtSecret string) AuthService {
 	return &authService{
 		userRepo:   userRepo,
 		jwtService: NewJWTService(jwtSecret, "gophermart"),
@@ -67,4 +71,25 @@ func (s *authService) Register(login, password string) (string, error) {
 	return token, nil
 }
 
-var ErrLoginTaken = errors.New("login already taken")
+func (s *authService) Login(login, password string) (string, error) {
+	if login == "" || password == "" {
+		return "", ErrInvalidCredentials
+	}
+
+	user, err := s.userRepo.GetUserByLogin(login)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user: %w", err)
+	}
+	if user == nil {
+		return "", ErrInvalidCredentials
+	}
+
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+		return "", ErrInvalidCredentials
+	}
+	token, err := s.jwtService.GenerateToken(user.ID, user.Login)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate token: %w", err)
+	}
+	return token, nil
+}

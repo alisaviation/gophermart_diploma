@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"golang.org/x/crypto/bcrypt"
+
 	"github.com/alisaviation/internal/database"
 	"github.com/alisaviation/internal/gophermart/models"
 )
@@ -18,7 +20,7 @@ func Test_authService_Register(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		userRepo    database.UserRepository
+		userRepo    database.User
 		jwtService  *MockJWTService
 		login       string
 		password    string
@@ -182,4 +184,125 @@ type MockJWTService struct {
 
 func (m *MockJWTService) GenerateToken(userID int, login string) (string, error) {
 	return m.GenerateTokenFunc(userID, login)
+}
+
+func Test_authService_Login(t *testing.T) {
+	mockJWT := &MockJWTService{
+		GenerateTokenFunc: func(userID int, login string) (string, error) {
+			return "generated.jwt.token", nil
+		},
+	}
+
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+
+	tests := []struct {
+		name        string
+		userRepo    *MockUserRepository
+		jwtService  *MockJWTService
+		login       string
+		password    string
+		want        string
+		wantErr     bool
+		expectedErr error
+	}{
+		{
+			name: "successful login",
+			userRepo: &MockUserRepository{
+				GetUserByLoginFunc: func(login string) (*models.User, error) {
+					return &models.User{
+						ID:           1,
+						Login:        "validuser",
+						PasswordHash: string(hashedPassword),
+					}, nil
+				},
+			},
+			jwtService: mockJWT,
+			login:      "validuser",
+			password:   "correctpassword",
+			want:       "generated.jwt.token",
+			wantErr:    false,
+		},
+		{
+			name: "invalid credentials - wrong password",
+			userRepo: &MockUserRepository{
+				GetUserByLoginFunc: func(login string) (*models.User, error) {
+					return &models.User{
+						Login:        "validuser",
+						PasswordHash: string(hashedPassword),
+					}, nil
+				},
+			},
+			jwtService:  mockJWT,
+			login:       "validuser",
+			password:    "wrongpassword",
+			want:        "",
+			wantErr:     true,
+			expectedErr: ErrInvalidCredentials,
+		},
+		{
+			name: "invalid credentials - user not found",
+			userRepo: &MockUserRepository{
+				GetUserByLoginFunc: func(login string) (*models.User, error) {
+					return nil, nil
+				},
+			},
+			jwtService:  mockJWT,
+			login:       "nonexistent",
+			password:    "anypassword",
+			want:        "",
+			wantErr:     true,
+			expectedErr: ErrInvalidCredentials,
+		},
+		{
+			name: "empty login",
+			userRepo: &MockUserRepository{
+				GetUserByLoginFunc: func(login string) (*models.User, error) {
+					return nil, nil
+				},
+			},
+			jwtService:  mockJWT,
+			login:       "",
+			password:    "anypassword",
+			want:        "",
+			wantErr:     true,
+			expectedErr: ErrInvalidCredentials,
+		},
+		{
+			name: "empty password",
+			userRepo: &MockUserRepository{
+				GetUserByLoginFunc: func(login string) (*models.User, error) {
+					return nil, nil
+				},
+			},
+			jwtService:  mockJWT,
+			login:       "validuser",
+			password:    "",
+			want:        "",
+			wantErr:     true,
+			expectedErr: ErrInvalidCredentials,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &authService{
+				userRepo:   tt.userRepo,
+				jwtService: tt.jwtService,
+			}
+			got, err := s.Login(tt.login, tt.password)
+
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Login() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if tt.wantErr && !errors.Is(err, tt.expectedErr) {
+				t.Errorf("Login() expected error = %v, got %v", tt.expectedErr, err)
+			}
+
+			if !tt.wantErr && got != tt.want {
+				t.Errorf("Login() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

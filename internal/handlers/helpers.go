@@ -17,6 +17,6 @@ func respondWithToken(w http.ResponseWriter, code int, message, token string) {
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(map[string]string{
 		"message": message,
-		//"token":   token,
+		"token":   token,
 	})
 }

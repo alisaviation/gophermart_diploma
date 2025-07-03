@@ -2,18 +2,43 @@ package middleware
 
 import (
 	"compress/gzip"
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/alisaviation/internal/gophermart/services"
 )
 
-//func AuthMiddleware(jwtSecret string) func(http.Handler) http.Handler {
-//	return func(next http.Handler) http.Handler {
-//		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//			next.ServeHTTP(w, r)
-//		})
-//	}
-//}
+func AuthMiddleware(jwtService *services.JWTService) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			authHeader := r.Header.Get("Authorization")
+			if authHeader == "" {
+				http.Error(w, "Authorization header required", http.StatusUnauthorized)
+				return
+			}
+
+			tokenParts := strings.Split(authHeader, " ")
+			if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+				fmt.Printf("Invalid token parts: %v\n", tokenParts)
+				http.Error(w, "Invalid authorization format", http.StatusUnauthorized)
+				return
+			}
+
+			claims, err := jwtService.ValidateToken(tokenParts[1])
+			if err != nil {
+				http.Error(w, "Invalid token: "+err.Error(), http.StatusUnauthorized)
+				return
+			}
+
+			ctx := context.WithValue(r.Context(), "userID", claims.UserID)
+			ctx = context.WithValue(ctx, "userLogin", claims.Login)
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
 
 func GzipMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -46,16 +47,24 @@ func (s *JWTService) GenerateToken(userID int, login string) (string, error) {
 
 func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &Claims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
 		return s.secretKey, nil
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("token validation failed: %w", err)
 	}
 
-	if claims, ok := token.Claims.(*Claims); ok && token.Valid {
-		return claims, nil
+	claims, ok := token.Claims.(*Claims)
+	if !ok || !token.Valid {
+		return nil, errors.New("invalid token claims")
 	}
 
-	return nil, errors.New("invalid token")
+	if claims.Issuer != s.issuer {
+		return nil, errors.New("invalid token issuer")
+	}
+
+	return claims, nil
 }

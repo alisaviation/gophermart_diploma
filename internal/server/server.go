@@ -112,9 +112,11 @@ func (s *ServerApp) startHTTPServer() error {
 	return nil
 }
 func (s *ServerApp) registerRoutes(r *chi.Mux) {
+	jwtService := services.NewJWTService(s.jwtSecret, "gophermart")
 	authService := services.NewAuthService(s.storage, s.jwtSecret)
 	authHandler := handlers.NewAuthHandler(authService)
-
+	orderService := services.NewOrderService(s.storage)
+	orderHandler := handlers.NewOrderHandler(orderService)
 	//auth := handlers.NewAuthController(
 	//	handlers.NewAuthService(s.userRepo, s.config.JWTSecret))
 	//order := handlers.NewOrderController(
@@ -123,17 +125,16 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 	//	handlers.NewBalanceService(s.balanceRepo))
 
 	r.Post("/api/user/register", authHandler.Register)
-	//r.Post("/api/user/login", s.authController.Login)
-	//
-	//r.Group(func(r chi.Router) {
-	//	r.Use(middleware.AuthMiddleware(s.config.JWTSecret))
-	//
-	//	r.Post("/api/user/orders", s.orderController.UploadOrder)
-	//	r.Get("/api/user/orders", s.orderController.GetOrders)
-	//	r.Get("/api/user/balance", s.balanceController.GetBalance)
-	//	r.Post("/api/user/balance/withdraw", s.balanceController.Withdraw)
-	//	r.Get("/api/user/withdrawals", s.balanceController.GetWithdrawals)
-	//})
+	r.Post("/api/user/login", authHandler.Login)
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.AuthMiddleware(jwtService))
+
+		r.Post("/api/user/orders", orderHandler.UploadOrder)
+		//	r.Get("/api/user/orders", s.orderController.GetOrders)
+		//	r.Get("/api/user/balance", s.balanceController.GetBalance)
+		//	r.Post("/api/user/balance/withdraw", s.balanceController.Withdraw)
+		//	r.Get("/api/user/withdrawals", s.balanceController.GetWithdrawals)
+	})
 }
 
 func (s *ServerApp) shutdown(ctx context.Context) {
