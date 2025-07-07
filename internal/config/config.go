@@ -15,12 +15,12 @@ type Server struct {
 func SetConfigServer() Server {
 	var config Server
 	config.RunAddress = "localhost:8080"
-	config.AccrualSystemAddress = ""
+	config.AccrualSystemAddress = "localhost:8080"
 	config.DatabaseURI = "postgres://postgres:postgres@localhost:5432/gophermart?sslmode=disable"
 	config.JWTSecret = "secret"
 
 	address := flag.String("a", "localhost:8080", "HTTP server address")
-	accrual := flag.String("r", "", "Accrual system address")
+	accrual := flag.String("r", "localhost:8080", "Accrual system address")
 	databse := flag.String("d", "postgres://postgres:postgres@localhost:5432/gophermart?sslmode=disable", "Database URI")
 
 	flag.Parse()

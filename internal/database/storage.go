@@ -19,6 +19,9 @@ type Order interface {
 	CreateOrder(order *models.Order) error
 	GetOrderByNumber(number string) (*models.Order, error)
 	GetOrdersByUser(userID int) ([]models.Order, error)
+	UpdateOrderStatus(number string, status string) error
+	UpdateOrderFromAccrual(number string, status string, accrual float64) error
+	GetOrdersByStatuses(statuses []string) ([]models.Order, error)
 }
 
 type Balance interface {

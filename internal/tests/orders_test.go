@@ -324,9 +324,9 @@ func Test_orderService_ValidateOrderNumber(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "short invalid number",
+			name: "short  number",
 			args: args{number: "42"},
-			want: false,
+			want: true,
 		},
 	}
 	for _, tt := range tests {

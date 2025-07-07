@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -78,28 +79,62 @@ func NewOrderHandler(orderService services.OrderService) *OrderHandler {
 }
 
 func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
+	var goods []dto.AccrualGood
+	var orderNumber string
 
+	contentType := r.Header.Get("Content-Type")
 	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized!", http.StatusUnauthorized)
 		return
 	}
 
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		logger.Log.Info("Failed to read request body")
-		http.Error(w, "Bad request", http.StatusBadRequest)
+	//body, err := io.ReadAll(r.Body)
+	//if err != nil {
+	//	logger.Log.Info("Failed to read request body")
+	//	http.Error(w, "Bad request", http.StatusBadRequest)
+	//	return
+	//}
+	//defer r.Body.Close()
+	//
+	//orderNumber := string(body)
+	//if orderNumber == "" {
+	//	http.Error(w, "Empty order number", http.StatusBadRequest)
+	//	return
+	//}
+
+	switch contentType {
+	case "text/plain":
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Bad request", http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+		orderNumber = string(body)
+		goods = []dto.AccrualGood{}
+
+	case "application/json":
+		var req struct {
+			Order string            `json:"order"`
+			Goods []dto.AccrualGood `json:"goods"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+			return
+		}
+		orderNumber = req.Order
+		goods = req.Goods
+
+	default:
+		http.Error(w, "Unsupported content type", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
-
-	orderNumber := string(body)
 	if orderNumber == "" {
 		http.Error(w, "Empty order number", http.StatusBadRequest)
 		return
 	}
-
-	status, err := h.orderService.UploadOrder(userID, orderNumber)
+	status, err := h.orderService.UploadOrder(userID, orderNumber, goods)
 	if err != nil {
 		logger.Log.Error("Failed to process order",
 			zap.Error(err),
@@ -142,6 +177,28 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	if len(orders) == 0 {
 		w.WriteHeader(http.StatusNoContent)
 		return
+	}
+	// Преобразуем в DTO для ответа
+	type orderResponse struct {
+		Number     string    `json:"number"`
+		Status     string    `json:"status"`
+		Accrual    float64   `json:"accrual,omitempty"`
+		UploadedAt time.Time `json:"uploaded_at"`
+	}
+
+	response := make([]orderResponse, 0, len(orders))
+	for _, order := range orders {
+		resp := orderResponse{
+			Number:     order.Number,
+			Status:     order.Status,
+			UploadedAt: order.UploadedAt,
+		}
+
+		if order.Status == "PROCESSED" {
+			resp.Accrual = order.Accrual
+		}
+
+		response = append(response, resp)
 	}
 
 	w.Header().Set("Content-Type", "application/json")

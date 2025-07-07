@@ -115,12 +115,12 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 	jwtService := services.NewJWTService(s.jwtSecret, "gophermart")
 	authService := services.NewAuthService(s.storage, s.jwtSecret)
 	authHandler := handlers.NewAuthHandler(authService)
-	orderService := services.NewOrderService(s.storage)
+	accrualClient := services.NewAccrualClient(s.config.AccrualSystemAddress)
+	orderService := services.NewOrderService(s.storage, accrualClient)
 	orderHandler := handlers.NewOrderHandler(orderService)
-	//auth := handlers.NewAuthController(
-	//	handlers.NewAuthService(s.userRepo, s.config.JWTSecret))
-	//order := handlers.NewOrderController(
-	//	handlers.NewOrderService(s.orderRepo, s.balanceRepo, s.config.AccrualSystem))
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go orderService.StartStatusUpdater(ctx, 1*time.Minute)
 	//balance := handlers.NewBalanceController(
 	//	handlers.NewBalanceService(s.balanceRepo))
 

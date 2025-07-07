@@ -1,36 +1,42 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/alisaviation/internal/database"
 	"github.com/alisaviation/internal/database/postgres"
+	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/models"
+	"github.com/alisaviation/pkg/logger"
 )
 
 type OrderService interface {
-	UploadOrder(userID int, orderNumber string) (int, error)
+	UploadOrder(userID int, orderNumber string, goods []dto.AccrualGood) (int, error)
 	GetOrders(userID int) ([]models.Order, error)
+	StartStatusUpdater(ctx context.Context, interval time.Duration)
 }
 
 type OrdersService struct {
-	OrderDB database.Order
+	OrderDB       database.Order
+	AccrualClient *AccrualClient
 }
 
-func NewOrderService(orderDB database.Order) OrderService {
-	return &OrdersService{OrderDB: orderDB}
+func NewOrderService(orderDB database.Order, accrualClient *AccrualClient) OrderService {
+	return &OrdersService{
+		OrderDB:       orderDB,
+		AccrualClient: accrualClient,
+	}
 }
 
 func (s *OrdersService) ValidateOrderNumber(number string) bool {
 	if number == "" {
-		return false
-	}
-
-	if len(number) < 8 || len(number) > 19 {
 		return false
 	}
 
@@ -57,7 +63,7 @@ func (s *OrdersService) ValidateOrderNumber(number string) bool {
 	return sum%10 == 0
 }
 
-func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error) {
+func (s *OrdersService) UploadOrder(userID int, orderNumber string, goods []dto.AccrualGood) (int, error) {
 	if _, err := strconv.Atoi(orderNumber); err != nil {
 		return http.StatusBadRequest, errors.New("order number must contain only digits")
 	}
@@ -89,6 +95,18 @@ func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error)
 		return http.StatusInternalServerError, err
 	}
 
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		if err := s.AccrualClient.RegisterOrder(ctx, orderNumber, goods); err != nil {
+			s.OrderDB.UpdateOrderStatus(orderNumber, "INVALID")
+			return
+		}
+	}()
+	logger.Log.Info("Order accepted for processing",
+		zap.String("order", orderNumber),
+		zap.Int("user_id", userID))
 	return http.StatusAccepted, nil
 }
 
@@ -96,6 +114,47 @@ func (s *OrdersService) GetOrders(userID int) ([]models.Order, error) {
 	orders, err := s.OrderDB.GetOrdersByUser(userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user orders: %w", err)
+	}
+	// Для каждого заказа проверяем актуальную информацию в accrual системе
+	for i, order := range orders {
+		// Проверяем только заказы, которые ещё не в финальном статусе
+		if order.Status == "PROCESSED" || order.Status == "INVALID" {
+			continue
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		accrualInfo, err := s.AccrualClient.GetOrderAccrual(ctx, order.Number)
+		if err != nil {
+			logger.Log.Warn("Failed to get accrual info",
+				zap.String("order", order.Number),
+				zap.Error(err))
+			continue
+		}
+
+		if accrualInfo == nil {
+			// Заказ не найден в accrual системе
+			continue
+		}
+
+		// Обновляем статус и accrual, если они изменились
+		if order.Status != accrualInfo.Status || order.Accrual != accrualInfo.Accrual {
+			if err := s.OrderDB.UpdateOrderFromAccrual(
+				order.Number,
+				accrualInfo.Status,
+				accrualInfo.Accrual,
+			); err != nil {
+				logger.Log.Error("Failed to update order from accrual",
+					zap.String("order", order.Number),
+					zap.Error(err))
+				continue
+			}
+
+			// Обновляем данные в возвращаемом списке
+			orders[i].Status = accrualInfo.Status
+			orders[i].Accrual = accrualInfo.Accrual
+		}
 	}
 	return orders, nil
 }
