@@ -1,4 +1,4 @@
-package services
+package tests
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/alisaviation/internal/database"
 	"github.com/alisaviation/internal/gophermart/models"
+	"github.com/alisaviation/internal/gophermart/services"
 )
 
 func Test_authService_Register(t *testing.T) {
@@ -56,7 +57,7 @@ func Test_authService_Register(t *testing.T) {
 			password:    "anypassword",
 			want:        "",
 			wantErr:     true,
-			expectedErr: ErrLoginTaken,
+			expectedErr: services.ErrLoginTaken,
 		},
 		{
 			name: "database error on user check",
@@ -143,9 +144,9 @@ func Test_authService_Register(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &authService{
-				userRepo:   tt.userRepo,
-				jwtService: tt.jwtService,
+			s := &services.AuthStructService{
+				UserRepo:   tt.userRepo,
+				JwtService: tt.jwtService,
 			}
 			got, err := s.Register(tt.login, tt.password)
 
@@ -163,27 +164,6 @@ func Test_authService_Register(t *testing.T) {
 			}
 		})
 	}
-}
-
-type MockUserRepository struct {
-	GetUserByLoginFunc func(login string) (*models.User, error)
-	CreateUserFunc     func(user models.User) error
-}
-
-func (m *MockUserRepository) GetUserByLogin(login string) (*models.User, error) {
-	return m.GetUserByLoginFunc(login)
-}
-
-func (m *MockUserRepository) CreateUser(user models.User) error {
-	return m.CreateUserFunc(user)
-}
-
-type MockJWTService struct {
-	GenerateTokenFunc func(userID int, login string) (string, error)
-}
-
-func (m *MockJWTService) GenerateToken(userID int, login string) (string, error) {
-	return m.GenerateTokenFunc(userID, login)
 }
 
 func Test_authService_Login(t *testing.T) {
@@ -237,7 +217,7 @@ func Test_authService_Login(t *testing.T) {
 			password:    "wrongpassword",
 			want:        "",
 			wantErr:     true,
-			expectedErr: ErrInvalidCredentials,
+			expectedErr: services.ErrInvalidCredentials,
 		},
 		{
 			name: "invalid credentials - user not found",
@@ -251,7 +231,7 @@ func Test_authService_Login(t *testing.T) {
 			password:    "anypassword",
 			want:        "",
 			wantErr:     true,
-			expectedErr: ErrInvalidCredentials,
+			expectedErr: services.ErrInvalidCredentials,
 		},
 		{
 			name: "empty login",
@@ -265,7 +245,7 @@ func Test_authService_Login(t *testing.T) {
 			password:    "anypassword",
 			want:        "",
 			wantErr:     true,
-			expectedErr: ErrInvalidCredentials,
+			expectedErr: services.ErrInvalidCredentials,
 		},
 		{
 			name: "empty password",
@@ -279,15 +259,15 @@ func Test_authService_Login(t *testing.T) {
 			password:    "",
 			want:        "",
 			wantErr:     true,
-			expectedErr: ErrInvalidCredentials,
+			expectedErr: services.ErrInvalidCredentials,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := &authService{
-				userRepo:   tt.userRepo,
-				jwtService: tt.jwtService,
+			s := &services.AuthStructService{
+				UserRepo:   tt.userRepo,
+				JwtService: tt.jwtService,
 			}
 			got, err := s.Login(tt.login, tt.password)
 

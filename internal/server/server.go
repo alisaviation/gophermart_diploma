@@ -130,7 +130,7 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 		r.Use(middleware.AuthMiddleware(jwtService))
 
 		r.Post("/api/user/orders", orderHandler.UploadOrder)
-		//	r.Get("/api/user/orders", s.orderController.GetOrders)
+		r.Get("/api/user/orders", orderHandler.GetOrders)
 		//	r.Get("/api/user/balance", s.balanceController.GetBalance)
 		//	r.Post("/api/user/balance/withdraw", s.balanceController.Withdraw)
 		//	r.Get("/api/user/withdrawals", s.balanceController.GetWithdrawals)

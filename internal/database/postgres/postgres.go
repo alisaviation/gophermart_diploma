@@ -111,3 +111,40 @@ func (p *PostgresStorage) GetOrderByNumber(number string) (*models.Order, error)
 
 	return &order, nil
 }
+
+func (p *PostgresStorage) GetOrdersByUser(userID int) ([]models.Order, error) {
+	query := `
+        SELECT id, user_id, number, status, accrual, uploaded_at 
+        FROM orders 
+        WHERE user_id = $1 
+        ORDER BY uploaded_at DESC`
+
+	rows, err := p.db.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var orders []models.Order
+	for rows.Next() {
+		var order models.Order
+		err := rows.Scan(
+			&order.ID,
+			&order.UserID,
+			&order.Number,
+			&order.Status,
+			&order.Accrual,
+			&order.UploadedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		orders = append(orders, order)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return orders, nil
+}

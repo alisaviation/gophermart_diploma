@@ -11,6 +11,13 @@ import (
 	"github.com/alisaviation/internal/gophermart/services"
 )
 
+type contextKey string
+
+const (
+	UserIDKey contextKey = "userID"
+	UserLogin contextKey = "userLogin"
+)
+
 func AuthMiddleware(jwtService *services.JWTService) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -33,8 +40,8 @@ func AuthMiddleware(jwtService *services.JWTService) func(http.Handler) http.Han
 				return
 			}
 
-			ctx := context.WithValue(r.Context(), "userID", claims.UserID)
-			ctx = context.WithValue(ctx, "userLogin", claims.Login)
+			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
+			ctx = context.WithValue(ctx, UserLogin, claims.Login)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/services"
+	"github.com/alisaviation/internal/middleware"
 	"github.com/alisaviation/pkg/logger"
 )
 
@@ -78,7 +79,7 @@ func NewOrderHandler(orderService services.OrderService) *OrderHandler {
 
 func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 
-	userID, ok := r.Context().Value("userID").(int)
+	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized!", http.StatusUnauthorized)
 		return
@@ -98,7 +99,7 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	status, err := h.orderService.UploadOrder(int(userID), orderNumber)
+	status, err := h.orderService.UploadOrder(userID, orderNumber)
 	if err != nil {
 		logger.Log.Error("Failed to process order",
 			zap.Error(err),
@@ -119,4 +120,34 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(status)
+}
+
+func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
+	if !ok {
+		logger.Log.Error("UserID not found in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	orders, err := h.orderService.GetOrders(userID)
+	if err != nil {
+		logger.Log.Error("Failed to get user orders",
+			zap.Error(err),
+			zap.Int("userID", userID))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if len(orders) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(orders); err != nil {
+		logger.Log.Error("Failed to encode response",
+			zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
 }

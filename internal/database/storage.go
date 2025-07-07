@@ -17,8 +17,8 @@ type User interface {
 
 type Order interface {
 	CreateOrder(order *models.Order) error
-	//GetOrdersByUser(userID int) ([]models.Order, error)
 	GetOrderByNumber(number string) (*models.Order, error)
+	GetOrdersByUser(userID int) ([]models.Order, error)
 }
 
 type Balance interface {

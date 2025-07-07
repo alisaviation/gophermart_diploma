@@ -22,19 +22,19 @@ type AuthService interface {
 	Login(login, password string) (string, error)
 }
 
-type authService struct {
-	userRepo   database.User
-	jwtService JWTServiceInterface
+type AuthStructService struct {
+	UserRepo   database.User
+	JwtService JWTServiceInterface
 }
 
 func NewAuthService(userRepo database.User, jwtSecret string) AuthService {
-	return &authService{
-		userRepo:   userRepo,
-		jwtService: NewJWTService(jwtSecret, "gophermart"),
+	return &AuthStructService{
+		UserRepo:   userRepo,
+		JwtService: NewJWTService(jwtSecret, "gophermart"),
 	}
 }
 
-func (s *authService) Register(login, password string) (string, error) {
+func (s *AuthStructService) Register(login, password string) (string, error) {
 	if password == "" {
 		return "", fmt.Errorf("password cannot be empty")
 	}
@@ -42,7 +42,7 @@ func (s *authService) Register(login, password string) (string, error) {
 	if !utf8.ValidString(password) {
 		return "", fmt.Errorf("password contains invalid UTF-8 sequences")
 	}
-	existingUser, err := s.userRepo.GetUserByLogin(login)
+	existingUser, err := s.UserRepo.GetUserByLogin(login)
 	if err != nil {
 		return "", fmt.Errorf("failed to check user existence: %w", err)
 	}
@@ -60,23 +60,23 @@ func (s *authService) Register(login, password string) (string, error) {
 		Login:        login,
 		PasswordHash: string(hashedPassword),
 	}
-	if err := s.userRepo.CreateUser(user); err != nil {
+	if err := s.UserRepo.CreateUser(user); err != nil {
 		return "", fmt.Errorf("user creation failed: %w", err)
 	}
 
-	token, err := s.jwtService.GenerateToken(user.ID, user.Login)
+	token, err := s.JwtService.GenerateToken(user.ID, user.Login)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate token: %w", err)
 	}
 	return token, nil
 }
 
-func (s *authService) Login(login, password string) (string, error) {
+func (s *AuthStructService) Login(login, password string) (string, error) {
 	if login == "" || password == "" {
 		return "", ErrInvalidCredentials
 	}
 
-	user, err := s.userRepo.GetUserByLogin(login)
+	user, err := s.UserRepo.GetUserByLogin(login)
 	if err != nil {
 		return "", fmt.Errorf("failed to get user: %w", err)
 	}
@@ -87,7 +87,7 @@ func (s *authService) Login(login, password string) (string, error) {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return "", ErrInvalidCredentials
 	}
-	token, err := s.jwtService.GenerateToken(user.ID, user.Login)
+	token, err := s.JwtService.GenerateToken(user.ID, user.Login)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate token: %w", err)
 	}

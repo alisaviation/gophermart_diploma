@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,17 +14,26 @@ import (
 
 type OrderService interface {
 	UploadOrder(userID int, orderNumber string) (int, error)
+	GetOrders(userID int) ([]models.Order, error)
 }
 
-type orderService struct {
-	orderDB database.Order
+type OrdersService struct {
+	OrderDB database.Order
 }
 
 func NewOrderService(orderDB database.Order) OrderService {
-	return &orderService{orderDB: orderDB}
+	return &OrdersService{OrderDB: orderDB}
 }
 
-func (s *orderService) ValidateOrderNumber(number string) bool {
+func (s *OrdersService) ValidateOrderNumber(number string) bool {
+	if number == "" {
+		return false
+	}
+
+	if len(number) < 8 || len(number) > 19 {
+		return false
+	}
+
 	sum := 0
 	alternate := false
 
@@ -47,7 +57,7 @@ func (s *orderService) ValidateOrderNumber(number string) bool {
 	return sum%10 == 0
 }
 
-func (s *orderService) UploadOrder(userID int, orderNumber string) (int, error) {
+func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error) {
 	if _, err := strconv.Atoi(orderNumber); err != nil {
 		return http.StatusBadRequest, errors.New("order number must contain only digits")
 	}
@@ -56,7 +66,7 @@ func (s *orderService) UploadOrder(userID int, orderNumber string) (int, error) 
 		return http.StatusUnprocessableEntity, errors.New("invalid order number by Luhn algorithm")
 	}
 
-	existingOrder, err := s.orderDB.GetOrderByNumber(orderNumber)
+	existingOrder, err := s.OrderDB.GetOrderByNumber(orderNumber)
 	if err != nil && !errors.Is(err, postgres.ErrNotFound) {
 		return http.StatusInternalServerError, err
 	}
@@ -75,9 +85,17 @@ func (s *orderService) UploadOrder(userID int, orderNumber string) (int, error) 
 		UploadedAt: time.Now(),
 	}
 
-	if err := s.orderDB.CreateOrder(order); err != nil {
+	if err := s.OrderDB.CreateOrder(order); err != nil {
 		return http.StatusInternalServerError, err
 	}
 
 	return http.StatusAccepted, nil
+}
+
+func (s *OrdersService) GetOrders(userID int) ([]models.Order, error) {
+	orders, err := s.OrderDB.GetOrdersByUser(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user orders: %w", err)
+	}
+	return orders, nil
 }
