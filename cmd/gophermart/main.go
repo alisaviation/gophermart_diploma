@@ -31,6 +31,8 @@ func main() {
 	repo := db.NewUserRepoPG(dbConn)
 	r.Post("/api/user/register", routers.RegisterHandler(repo))
 	r.Post("/api/user/login", routers.LoginHandler(repo))
+	orderRepo := db.NewOrderRepoPG(dbConn)
+	r.With(routers.AuthMiddleware).Post("/api/user/orders", routers.UploadOrderHandler(repo, orderRepo))
 
 	log.Printf("Сервер запущен на %s", cfg.RunAddress)
 	http.ListenAndServe(cfg.RunAddress, r)

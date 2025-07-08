@@ -109,3 +109,75 @@ func LoginHandler(repo UserRepo) http.HandlerFunc {
 		w.WriteHeader(http.StatusOK)
 	}
 }
+
+func isValidLuhn(number string) bool {
+	sum := 0
+	double := false
+	for i := len(number) - 1; i >= 0; i-- {
+		digit := int(number[i] - '0')
+		if digit < 0 || digit > 9 {
+			return false
+		}
+		if double {
+			digit = digit * 2
+			if digit > 9 {
+				digit -= 9
+			}
+		}
+		sum += digit
+		double = !double
+	}
+	return sum%10 == 0
+}
+
+func UploadOrderHandler(repo UserRepo, orderRepo db.OrderRepo) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		userID, ok := GetUserIDFromContext(r.Context())
+		if !ok {
+			http.Error(w, "пользователь не аутентифицирован", http.StatusUnauthorized)
+			return
+		}
+		user, err := repo.GetUserByLogin(userID)
+		if err != nil {
+			http.Error(w, "пользователь не найден", http.StatusUnauthorized)
+			return
+		}
+		orderNumberBytes := make([]byte, 64)
+		n, err := r.Body.Read(orderNumberBytes)
+		if err != nil && err.Error() != "EOF" {
+			http.Error(w, "неверный формат запроса", http.StatusBadRequest)
+			return
+		}
+		orderNumber := strings.TrimSpace(string(orderNumberBytes[:n]))
+		if orderNumber == "" {
+			http.Error(w, "неверный формат запроса", http.StatusBadRequest)
+			return
+		}
+		for _, c := range orderNumber {
+			if c < '0' || c > '9' {
+				http.Error(w, "неверный формат номера заказа", http.StatusUnprocessableEntity)
+				return
+			}
+		}
+		if !isValidLuhn(orderNumber) {
+			http.Error(w, "неверный формат номера заказа", http.StatusUnprocessableEntity)
+			return
+		}
+		order, err := orderRepo.GetOrderByNumber(orderNumber)
+		if err == nil && order != nil {
+			if order.UserID == user.ID {
+				w.WriteHeader(http.StatusOK)
+				return
+			} else {
+				http.Error(w, "номер заказа уже был загружен другим пользователем", http.StatusConflict)
+				return
+			}
+		}
+		err = orderRepo.CreateOrder(orderNumber, user.ID)
+		if err != nil {
+			http.Error(w, "внутренняя ошибка сервера", http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}
+}
