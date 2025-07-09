@@ -58,6 +58,32 @@ func (p *PostgresStorage) createTable(ctx context.Context, db *sql.DB) error {
 		return fmt.Errorf("failed to orders users table: %w", err)
 	}
 
+	_, err = tx.ExecContext(ctx, `
+        CREATE TABLE IF NOT EXISTS withdrawals (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            order_number TEXT NOT NULL UNIQUE,
+            sum DECIMAL(10, 2) NOT NULL,
+            processed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )
+    `)
+
+	if err != nil {
+		return fmt.Errorf("failed to create withdrawals table: %w", err)
+	}
+	//_, err = tx.ExecContext(ctx, `
+	//    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)
+	//`)
+	//if err != nil {
+	//	return fmt.Errorf("failed to create orders user_id index: %w", err)
+	//}
+	//
+	//_, err = tx.ExecContext(ctx, `
+	//    CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id)
+	//`)
+	//if err != nil {
+	//	return fmt.Errorf("failed to create withdrawals user_id index: %w", err)
+	//}
 	return tx.Commit()
 }
 
@@ -86,9 +112,9 @@ func (p *PostgresStorage) GetUserByLogin(login string) (*models.User, error) {
 }
 
 func (p *PostgresStorage) CreateOrder(order *models.Order) error {
-	query := `INSERT INTO orders (user_id, number, status, uploaded_at) 
-              VALUES ($1, $2, $3, $4)`
-	_, err := p.db.Exec(query, order.UserID, order.Number, order.Status, order.UploadedAt)
+	query := `INSERT INTO orders (user_id, number, status, accrual, uploaded_at) 
+              VALUES ($1, $2, $3, $4, $5)`
+	_, err := p.db.Exec(query, order.UserID, order.Number, order.Status, order.Accrual, order.UploadedAt)
 	return err
 }
 
@@ -97,6 +123,16 @@ func (p *PostgresStorage) UpdateOrderStatus(number string, status string) error 
 		"UPDATE orders SET status = $1 WHERE number = $2",
 		status, number,
 	)
+	return err
+}
+
+func (p *PostgresStorage) UpdateOrderFromAccrual(number string, status string, accrual float64) error {
+	query := `
+        UPDATE orders 
+        SET status = $1, accrual = $2 
+        WHERE number = $3`
+
+	_, err := p.db.Exec(query, status, accrual, number)
 	return err
 }
 
@@ -159,16 +195,6 @@ func (p *PostgresStorage) GetOrdersByUser(userID int) ([]models.Order, error) {
 	return orders, nil
 }
 
-func (p *PostgresStorage) UpdateOrderFromAccrual(number string, status string, accrual float64) error {
-	query := `
-        UPDATE orders 
-        SET status = $1, accrual = $2 
-        WHERE number = $3`
-
-	_, err := p.db.Exec(query, status, accrual, number)
-	return err
-}
-
 func (p *PostgresStorage) GetOrdersByStatuses(statuses []string) ([]models.Order, error) {
 	if len(statuses) == 0 {
 		return nil, nil
@@ -208,4 +234,37 @@ func (p *PostgresStorage) GetOrdersByStatuses(statuses []string) ([]models.Order
 	}
 
 	return orders, nil
+}
+
+func (p *PostgresStorage) GetBalance(userID int) (*models.Balance, error) {
+	balance := &models.Balance{
+		UserID: userID,
+	}
+
+	err := p.db.QueryRow(`
+        SELECT COALESCE(
+            (SELECT SUM(accrual) 
+             FROM orders 
+             WHERE user_id = $1 AND status = 'PROCESSED')
+            -
+            (SELECT COALESCE(SUM(sum), 0)
+             FROM withdrawals 
+             WHERE user_id = $1)
+        , 0) AS current_balance`,
+		userID).Scan(&balance.Current)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current balance:: %w", err)
+	}
+
+	err = p.db.QueryRow(`
+        SELECT COALESCE(SUM(sum), 0) 
+        FROM withdrawals 
+        WHERE user_id = $1`,
+		userID).Scan(&balance.Withdrawn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get withdrawn balance: %w", err)
+	}
+
+	return balance, nil
 }

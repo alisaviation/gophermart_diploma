@@ -30,14 +30,3 @@ type Withdrawal struct {
 	Sum         float64
 	ProcessedAt time.Time
 }
-
-type AccrualOrderRequest struct {
-	Order string `json:"order"`
-	User  int    `json:"user"`
-}
-
-type AccrualResponse struct {
-	Order   string  `json:"order"`
-	Status  string  `json:"status"` // REGISTERED, INVALID, PROCESSING, PROCESSED
-	Accrual float64 `json:"accrual,omitempty"`
-}

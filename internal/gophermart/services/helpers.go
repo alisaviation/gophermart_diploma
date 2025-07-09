@@ -6,40 +6,9 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/alisaviation/internal/gophermart/models"
 	"github.com/alisaviation/pkg/logger"
 )
-
-//func (s *OrdersService) checkAccrualStatus(orderNumber string) {
-//	for {
-//		resp, err := s.AccrualClient.GetOrderInfo(orderNumber)
-//		if err != nil {
-//			logger.Log.Error("Failed to check accrual status",
-//				zap.String("orderNumber", orderNumber),
-//				zap.Error(err))
-//			time.Sleep(5 * time.Second)
-//			continue
-//		}
-//
-//		if resp == nil {
-//			time.Sleep(1 * time.Second)
-//			continue
-//		}
-//
-//		//// Обновляем статус в БД
-//		//if err := s.OrderDB.UpdateOrderStatus(resp.Order, resp.Status, resp.Accrual); err != nil {
-//		//	logger.Log.Error("Failed to update order status",
-//		//		zap.String("orderNumber", resp.Order),
-//		//		zap.Error(err))
-//		//}
-//		//
-//		//// Если статус финальный - прекращаем проверку
-//		//if resp.Status == "PROCESSED" || resp.Status == "INVALID" {
-//		//	break
-//		//}
-//
-//		time.Sleep(1 * time.Second)
-//	}
-//}
 
 func (s *OrdersService) StartStatusUpdater(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
@@ -57,7 +26,9 @@ func (s *OrdersService) StartStatusUpdater(ctx context.Context, interval time.Du
 }
 
 func (s *OrdersService) updatePendingOrdersStatus(ctx context.Context) {
-	// Получаем заказы, которые ещё не в финальном статусе
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+
 	orders, err := s.OrderDB.GetOrdersByStatuses([]string{"NEW", "PROCESSING"})
 	if err != nil {
 		logger.Log.Error("Failed to get pending orders for update",
@@ -71,36 +42,43 @@ func (s *OrdersService) updatePendingOrdersStatus(ctx context.Context) {
 	for _, order := range orders {
 		select {
 		case <-ctx.Done():
+			logger.Log.Warn("Context done during status update")
 			return
 		default:
-			accrualInfo, err := s.AccrualClient.GetOrderAccrual(ctx, order.Number)
-			if err != nil {
-				logger.Log.Warn("Failed to get accrual info for order",
-					zap.String("order", order.Number),
-					zap.Error(err))
-				continue
-			}
+			s.updateSingleOrderStatus(ctx, order)
+		}
+	}
+}
 
-			if accrualInfo == nil {
-				continue
-			}
+func (s *OrdersService) updateSingleOrderStatus(ctx context.Context, order models.Order) {
+	accrualInfo, err := s.AccrualClient.GetOrderAccrual(ctx, order.Number)
+	if err != nil {
+		logger.Log.Warn("Failed to get accrual info",
+			zap.String("order", order.Number),
+			zap.Error(err))
+		return
+	}
 
-			if order.Status != accrualInfo.Status || order.Accrual != accrualInfo.Accrual {
-				if err := s.OrderDB.UpdateOrderFromAccrual(
-					order.Number,
-					accrualInfo.Status,
-					accrualInfo.Accrual,
-				); err != nil {
-					logger.Log.Error("Failed to update order status",
-						zap.String("order", order.Number),
-						zap.Error(err))
-				} else {
-					logger.Log.Info("Order status updated",
-						zap.String("order", order.Number),
-						zap.String("status", accrualInfo.Status),
-						zap.Float64("accrual", accrualInfo.Accrual))
-				}
-			}
+	if accrualInfo == nil {
+		logger.Log.Debug("No accrual info for order",
+			zap.String("order", order.Number))
+		return
+	}
+
+	if order.Status != accrualInfo.Status || order.Accrual != accrualInfo.Accrual {
+		if err := s.OrderDB.UpdateOrderFromAccrual(
+			order.Number,
+			accrualInfo.Status,
+			accrualInfo.Accrual,
+		); err != nil {
+			logger.Log.Error("Failed to update order",
+				zap.String("order", order.Number),
+				zap.Error(err))
+		} else {
+			logger.Log.Info("Order updated",
+				zap.String("order", order.Number),
+				zap.String("status", accrualInfo.Status),
+				zap.Float64("accrual", accrualInfo.Accrual))
 		}
 	}
 }

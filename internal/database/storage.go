@@ -7,7 +7,7 @@ import (
 type Storage interface {
 	User
 	Order
-	//Balance
+	Balance
 }
 
 type User interface {
@@ -26,7 +26,7 @@ type Order interface {
 
 type Balance interface {
 	GetBalance(userID int) (*models.Balance, error)
-	UpdateBalance(userID int, current, withdrawn float64) error
-	CreateWithdrawal(userID int, orderNumber string, sum float64) error
-	GetWithdrawals(userID int) ([]models.Withdrawal, error)
+	//UpdateBalance(userID int, current, withdrawn float64) error
+	//CreateWithdrawal(userID int, orderNumber string, sum float64) error
+	//GetWithdrawals(userID int) ([]models.Withdrawal, error)
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -48,40 +49,42 @@ func (c *AccrualClient) RegisterOrder(ctx context.Context, orderNumber string, g
 	url := fmt.Sprintf("%s/api/orders", c.baseURL)
 
 	var lastErr error
-	for attempt := 0; attempt < c.maxRetries; attempt++ {
-		if attempt > 0 {
-			time.Sleep(c.retryDelay)
-		}
+	//for attempt := 0; attempt < c.maxRetries; attempt++ {
+	//	if attempt > 0 {
+	//		time.Sleep(c.retryDelay)
+	//	}
 
-		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
-		if err != nil {
-			lastErr = fmt.Errorf("failed to create request: %w", err)
-			continue
-		}
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := c.client.Do(req)
-		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
-			continue
-		}
-		defer resp.Body.Close()
-
-		switch resp.StatusCode {
-		case http.StatusAccepted:
-			return nil
-		case http.StatusBadRequest:
-			return fmt.Errorf("invalid request format")
-		case http.StatusConflict:
-			return fmt.Errorf("order already registered")
-		case http.StatusInternalServerError:
-			lastErr = fmt.Errorf("accrual server error")
-			continue
-		default:
-			lastErr = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-			continue
-		}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		lastErr = fmt.Errorf("failed to create request: %w", err)
+		//continue
 	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		lastErr = fmt.Errorf("request failed: %w", err)
+		//continue
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusAccepted:
+		logger.Log.Info("Order accepted for processing",
+			zap.String("order", orderNumber))
+		return nil
+	case http.StatusBadRequest:
+		return fmt.Errorf("invalid request format")
+	case http.StatusConflict:
+		return fmt.Errorf("order already registered")
+	case http.StatusInternalServerError:
+		lastErr = fmt.Errorf("accrual server error")
+		//continue
+	default:
+		lastErr = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		//continue
+	}
+	//}
 
 	return lastErr
 }
@@ -137,7 +140,7 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 				continue
 			}
 
-			logger.Log.Debug("Successfully got accrual info",
+			logger.Log.Info("Successfully got accrual info",
 				zap.String("order", orderNumber),
 				zap.String("status", accrualResp.Status),
 				zap.Float64("accrual", accrualResp.Accrual))
@@ -145,26 +148,24 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 			return &accrualResp, nil
 
 		case http.StatusNoContent:
-			logger.Log.Debug("Order not registered in accrual system",
-				zap.String("order", orderNumber))
 			return nil, nil
 
 		case http.StatusTooManyRequests:
 			retryAfter := resp.Header.Get("Retry-After")
-			logger.Log.Warn("Rate limit exceeded for accrual info",
+			logger.Log.Error("Rate limit exceeded for accrual info",
 				zap.String("order", orderNumber),
 				zap.String("retry_after", retryAfter))
 			lastErr = fmt.Errorf("rate limit exceeded")
 			continue
 
 		case http.StatusInternalServerError:
-			logger.Log.Warn("Accrual system internal error",
+			logger.Log.Error("Accrual system internal error",
 				zap.String("order", orderNumber))
 			lastErr = fmt.Errorf("accrual server error")
 			continue
 
 		default:
-			logger.Log.Warn("Unexpected status from accrual system",
+			logger.Log.Error("Unexpected status from accrual system",
 				zap.String("order", orderNumber),
 				zap.Int("status_code", resp.StatusCode))
 			lastErr = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
@@ -176,4 +177,59 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 		zap.String("order", orderNumber),
 		zap.Error(lastErr))
 	return nil, lastErr
+}
+
+func (c *AccrualClient) RegisterGoodReward(ctx context.Context, reward dto.AccrualGoodReward) error {
+	if reward.Match == "" {
+		return errors.New("match cannot be empty")
+	}
+	if reward.Reward <= 0 {
+		return errors.New("reward must be positive")
+	}
+	if reward.RewardType != "%" && reward.RewardType != "pt" {
+		return errors.New("reward_type must be either '%' or 'pt'")
+	}
+
+	body, err := json.Marshal(reward)
+	if err != nil {
+		logger.Log.Error("Failed to marshal reward request",
+			zap.Error(err),
+			zap.Any("reward", reward))
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/api/goods", c.baseURL)
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		logger.Log.Error("Failed to create reward request",
+			zap.Error(err))
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.client.Do(req)
+	if err != nil {
+		logger.Log.Error("Reward registration request failed",
+			zap.Error(err))
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	logger.Log.Info("Accrual reward registration response",
+		zap.Int("status_code", resp.StatusCode),
+		zap.String("match", reward.Match))
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		return nil
+	case http.StatusBadRequest:
+		return fmt.Errorf("invalid request format")
+	case http.StatusConflict:
+		return fmt.Errorf("reward match already exists")
+	case http.StatusInternalServerError:
+		return fmt.Errorf("accrual server error")
+	default:
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
 }

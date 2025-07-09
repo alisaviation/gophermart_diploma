@@ -35,12 +35,17 @@ type ServerApp struct {
 	wg             sync.WaitGroup
 	mu             sync.RWMutex
 	jwtSecret      string
+	ctx            context.Context
+	cancel         context.CancelFunc
 }
 
 func NewServerApp(conf config.Server) *ServerApp {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &ServerApp{
 		config:         conf,
 		shutdownSignal: make(chan struct{}),
+		ctx:            ctx,
+		cancel:         cancel,
 	}
 }
 
@@ -54,31 +59,33 @@ func (s *ServerApp) Run() error {
 	}
 	s.storage = storage
 
-	go s.handleSignals(cancel)
-
-	if err := s.startHTTPServer(); err != nil {
-		return err
-	}
-
-	select {
-	case <-s.shutdownSignal:
-		logger.Log.Info("Shutdown signal received")
-	case <-ctx.Done():
-		logger.Log.Info("Context cancelled")
-	}
-	s.shutdown(ctx)
-	logger.Log.Info("Server shutdown complete")
-	return nil
-}
-
-func (s *ServerApp) handleSignals(cancel context.CancelFunc) {
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := s.startHTTPServer(); err != nil {
+			serverErr <- fmt.Errorf("HTTP server failed: %w", err)
+			cancel()
+		}
+	}()
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	sig := <-sigChan
-	logger.Log.Info("Received signal", zap.String("signal", sig.String()))
-	cancel()
-	close(s.shutdownSignal)
+	select {
+	case sig := <-sigChan:
+		logger.Log.Info("Received signal, shutting down",
+			zap.String("signal", sig.String()))
+
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer shutdownCancel()
+		s.shutdown(shutdownCtx)
+
+	case err := <-serverErr:
+		return err
+	case <-s.ctx.Done():
+		logger.Log.Info("Server context cancelled")
+	}
+
+	logger.Log.Info("Server shutdown complete")
+	return nil
 }
 
 func (s *ServerApp) startHTTPServer() error {
@@ -111,18 +118,19 @@ func (s *ServerApp) startHTTPServer() error {
 
 	return nil
 }
+
 func (s *ServerApp) registerRoutes(r *chi.Mux) {
 	jwtService := services.NewJWTService(s.jwtSecret, "gophermart")
 	authService := services.NewAuthService(s.storage, s.jwtSecret)
-	authHandler := handlers.NewAuthHandler(authService)
 	accrualClient := services.NewAccrualClient(s.config.AccrualSystemAddress)
 	orderService := services.NewOrderService(s.storage, accrualClient)
-	orderHandler := handlers.NewOrderHandler(orderService)
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	go orderService.StartStatusUpdater(ctx, 1*time.Minute)
-	//balance := handlers.NewBalanceController(
-	//	handlers.NewBalanceService(s.balanceRepo))
+	balanceService := services.NewBalanceService(s.storage)
+
+	authHandler := handlers.NewAuthHandler(authService)
+	orderHandler := handlers.NewOrderHandler(orderService, s.ctx)
+	balanceHandler := handlers.NewBalanceHandler(balanceService)
+
+	go orderService.StartStatusUpdater(s.ctx, 15*time.Second)
 
 	r.Post("/api/user/register", authHandler.Register)
 	r.Post("/api/user/login", authHandler.Login)
@@ -131,7 +139,7 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 
 		r.Post("/api/user/orders", orderHandler.UploadOrder)
 		r.Get("/api/user/orders", orderHandler.GetOrders)
-		//	r.Get("/api/user/balance", s.balanceController.GetBalance)
+		r.Get("/api/user/balance", balanceHandler.GetUserBalance)
 		//	r.Post("/api/user/balance/withdraw", s.balanceController.Withdraw)
 		//	r.Get("/api/user/withdrawals", s.balanceController.GetWithdrawals)
 	})
@@ -147,13 +155,37 @@ func (s *ServerApp) shutdown(ctx context.Context) {
 		}
 	}
 
+	if s.cancel != nil {
+		s.cancel()
+	}
+
 	if s.db != nil {
 		if err := s.db.Close(); err != nil {
 			logger.Log.Error("Failed to close database connection", zap.Error(err))
 		}
 	}
+	// Ожидание с таймаутом
+	select {
+	case <-time.After(5 * time.Second):
+		logger.Log.Warn("Shutdown timed out")
+	case <-func() chan struct{} {
+		ch := make(chan struct{})
+		go func() { s.wg.Wait(); close(ch) }()
+		return ch
+	}():
+	}
+	//done := make(chan struct{})
+	//go func() {
+	//	s.wg.Wait()
+	//	close(done)
+	//}()
 
-	s.wg.Wait()
+	//select {
+	//case <-done:
+	//	logger.Log.Info("All background tasks completed")
+	//case <-ctx.Done():
+	//	logger.Log.Warn("Graceful shutdown timed out, forcing exit")
+	//}
 }
 
 func (s *ServerApp) initDB(ctx context.Context) (*postgres.PostgresStorage, error) {

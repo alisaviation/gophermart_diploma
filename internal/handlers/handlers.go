@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -70,17 +71,21 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 type OrderHandler struct {
 	orderService services.OrderService
+	serverCtx    context.Context
 }
 
-func NewOrderHandler(orderService services.OrderService) *OrderHandler {
+func NewOrderHandler(orderService services.OrderService, serverCtx context.Context) *OrderHandler {
 	return &OrderHandler{
 		orderService: orderService,
+		serverCtx:    serverCtx,
 	}
 }
 
 func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 	var goods []dto.AccrualGood
 	var orderNumber string
+	ctx, cancel := context.WithTimeout(h.serverCtx, 10*time.Second)
+	defer cancel()
 
 	contentType := r.Header.Get("Content-Type")
 	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
@@ -88,20 +93,6 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized!", http.StatusUnauthorized)
 		return
 	}
-
-	//body, err := io.ReadAll(r.Body)
-	//if err != nil {
-	//	logger.Log.Info("Failed to read request body")
-	//	http.Error(w, "Bad request", http.StatusBadRequest)
-	//	return
-	//}
-	//defer r.Body.Close()
-	//
-	//orderNumber := string(body)
-	//if orderNumber == "" {
-	//	http.Error(w, "Empty order number", http.StatusBadRequest)
-	//	return
-	//}
 
 	switch contentType {
 	case "text/plain":
@@ -126,6 +117,17 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 		orderNumber = req.Order
 		goods = req.Goods
 
+		// Валидация товаров
+		for _, good := range goods {
+			if good.Description == "" || good.Price <= 0 {
+				logger.Log.Warn("Invalid good data",
+					zap.Any("good", good),
+					zap.String("order", orderNumber))
+				http.Error(w, "Invalid good data", http.StatusBadRequest)
+				return
+			}
+		}
+
 	default:
 		http.Error(w, "Unsupported content type", http.StatusBadRequest)
 		return
@@ -134,7 +136,7 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Empty order number", http.StatusBadRequest)
 		return
 	}
-	status, err := h.orderService.UploadOrder(userID, orderNumber, goods)
+	status, err := h.orderService.UploadOrder(ctx, userID, orderNumber, goods)
 	if err != nil {
 		logger.Log.Error("Failed to process order",
 			zap.Error(err),
@@ -178,7 +180,6 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	// Преобразуем в DTO для ответа
 	type orderResponse struct {
 		Number     string    `json:"number"`
 		Status     string    `json:"status"`
@@ -204,6 +205,42 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(orders); err != nil {
 		logger.Log.Error("Failed to encode response",
+			zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+type BalanceHandler struct {
+	balanceService services.BalanceService
+}
+
+func NewBalanceHandler(balanceService services.BalanceService) *BalanceHandler {
+	return &BalanceHandler{balanceService: balanceService}
+}
+
+func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
+	if !ok {
+		logger.Log.Error("User ID not found in context")
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	balance, err := h.balanceService.GetUserBalance(userID)
+	if err != nil {
+		logger.Log.Error("Failed to get user balance",
+			zap.Int("userID", userID),
+			zap.Error(err))
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if err := json.NewEncoder(w).Encode(balance); err != nil {
+		logger.Log.Error("Failed to encode balance response",
+			zap.Int("userID", userID),
 			zap.Error(err))
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
