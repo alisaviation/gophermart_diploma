@@ -2,15 +2,9 @@ package db
 
 import (
 	"database/sql"
-	"time"
-)
 
-type User struct {
-	ID           int64     `db:"id"`
-	Login        string    `db:"login"`
-	PasswordHash string    `db:"password_hash"`
-	CreatedAt    time.Time `db:"created_at"`
-}
+	"github.com/AlexeySalamakhin/gophermart/cmd/gophermart/models"
+)
 
 type UserRepoPG struct {
 	db *sql.DB
@@ -31,11 +25,17 @@ func (r *UserRepoPG) IsLoginExist(login string) (bool, error) {
 	return exists, err
 }
 
-func (r *UserRepoPG) GetUserByLogin(login string) (*User, error) {
-	var u User
+func (r *UserRepoPG) GetUserByLogin(login string) (*models.User, error) {
+	var u models.User
 	err := r.db.QueryRow(`SELECT id, login, password_hash, created_at FROM users WHERE login=$1`, login).Scan(&u.ID, &u.Login, &u.PasswordHash, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
 	return &u, nil
+}
+
+type UserRepo interface {
+	CreateUser(login, passwordHash string) error
+	IsLoginExist(login string) (bool, error)
+	GetUserByLogin(login string) (*models.User, error)
 }

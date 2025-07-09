@@ -7,7 +7,7 @@ import (
 	"github.com/AlexeySalamakhin/gophermart/cmd/gophermart/config"
 	"github.com/AlexeySalamakhin/gophermart/cmd/gophermart/db"
 	"github.com/AlexeySalamakhin/gophermart/cmd/gophermart/routers"
-	"github.com/go-chi/chi/v5"
+	"github.com/AlexeySalamakhin/gophermart/cmd/gophermart/service"
 	"github.com/joho/godotenv"
 )
 
@@ -26,13 +26,12 @@ func main() {
 		log.Fatalf("Ошибка миграции БД: %v", err)
 	}
 
-	r := chi.NewRouter()
-
-	repo := db.NewUserRepoPG(dbConn)
-	r.Post("/api/user/register", routers.RegisterHandler(repo))
-	r.Post("/api/user/login", routers.LoginHandler(repo))
+	userRepo := db.NewUserRepoPG(dbConn)
+	userService := service.NewUserService(userRepo)
 	orderRepo := db.NewOrderRepoPG(dbConn)
-	r.With(routers.AuthMiddleware).Post("/api/user/orders", routers.UploadOrderHandler(repo, orderRepo))
+	orderService := service.NewOrderService(orderRepo, userRepo)
+	h := routers.NewHandler(userService, orderService)
+	r := routers.SetupRouters(h)
 
 	log.Printf("Сервер запущен на %s", cfg.RunAddress)
 	http.ListenAndServe(cfg.RunAddress, r)
