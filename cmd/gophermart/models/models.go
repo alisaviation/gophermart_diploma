@@ -16,6 +16,6 @@ type Order struct {
 	CreatedAt   time.Time `db:"created_at"`
 }
 type RegisterRequest struct {
-	Login    string
-	Password string
+	Login    string `json:"login"`
+	Password string `json:"password"`
 }
