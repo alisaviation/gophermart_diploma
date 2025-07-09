@@ -34,6 +34,5 @@ func main() {
 	r := routers.SetupRouters(h)
 
 	log.Printf("Сервер запущен на %s", cfg.RunAddress)
-
 	http.ListenAndServe(cfg.RunAddress, r)
 }
