@@ -21,21 +21,21 @@ func NewRouter(storage storage.Storage, authService *services.AuthService, accru
 	// Middleware
 	router.Use(middleware.GzipMiddleware)
 
-	// Публичные маршруты
+	// Все маршруты /api/user
 	router.Route("/api/user", func(r chi.Router) {
+		// Публичные
 		r.Post("/register", handlers.RegisterHandler)
 		r.Post("/login", handlers.LoginHandler)
-	})
 
-	// Защищенные маршруты
-	router.Route("/api/user", func(r chi.Router) {
-		r.Use(middleware.AuthMiddleware(authService))
-
-		r.Post("/orders", handlers.UploadOrderHandler)
-		r.Get("/orders", handlers.GetOrdersHandler)
-		r.Get("/balance", handlers.GetBalanceHandler)
-		r.Post("/balance/withdraw", handlers.WithdrawHandler)
-		r.Get("/withdrawals", handlers.GetWithdrawalsHandler)
+		// Защищённые
+		r.Group(func(protected chi.Router) {
+			protected.Use(middleware.AuthMiddleware(authService))
+			protected.Post("/orders", handlers.UploadOrderHandler)
+			protected.Get("/orders", handlers.GetOrdersHandler)
+			protected.Get("/balance", handlers.GetBalanceHandler)
+			protected.Post("/balance/withdraw", handlers.WithdrawHandler)
+			protected.Get("/withdrawals", handlers.GetWithdrawalsHandler)
+		})
 	})
 
 	return &Router{

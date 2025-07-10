@@ -1,3 +1,4 @@
+-- +goose Up
 -- Создание таблицы пользователей
 CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY,

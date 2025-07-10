@@ -64,10 +64,55 @@ download-statictest:
 	@echo "Downloading statictest..."
 	./scripts/download_statictest.sh
 
+# Скачивание автотестов
+download-autotests:
+	@echo "Downloading autotests..."
+	./scripts/download_autotests.sh
+
 # Запуск statictest
 statictest:
 	@echo "Running statictest..."
 	go vet -vettool=./.tools/statictest ./...
+
+# Запуск автотестов
+autotest: build
+	@echo "Running autotests..."
+	@if [ ! -f .tools/gophermarttest ]; then \
+		echo "gophermarttest not found, downloading..."; \
+		./scripts/download_autotests.sh; \
+	fi
+	@if [ ! -f .tools/random ]; then \
+		echo "random not found, downloading..."; \
+		./scripts/download_autotests.sh; \
+	fi
+	@echo "Starting PostgreSQL..."
+	@docker compose up -d postgres
+	@sleep 5
+	@echo "Running migrations..."
+	@$$HOME/go/bin/goose -dir migrations postgres "postgresql://gophermart:gophermart@localhost:5432/gophermart?sslmode=disable" up
+	@echo "Starting accrual server..."
+	@echo $$(.tools/random unused-port) > .accrual_port
+	@ACCRUAL_PORT=$$(cat .accrual_port) && echo "Accrual port: $$ACCRUAL_PORT" && RUN_ADDRESS=":$$ACCRUAL_PORT" DATABASE_URI="postgresql://gophermart:gophermart@localhost:5432/gophermart?sslmode=disable" ./cmd/accrual/accrual_darwin_arm64 &
+	@ACCRUAL_PID=$$!
+	@sleep 2
+	@echo "Starting gophermart server..."
+	@ACCRUAL_PORT=$$(cat .accrual_port) && RUN_ADDRESS="localhost:8080" DATABASE_URI="postgresql://gophermart:gophermart@localhost:5432/gophermart?sslmode=disable" ACCRUAL_SYSTEM_ADDRESS="http://localhost:$$ACCRUAL_PORT" ./bin/gophermart &
+	@GOPHERMART_PID=$$!
+	@sleep 3
+	@echo "Running gophermarttest..."
+	@ACCRUAL_PORT=$$(cat .accrual_port) && .tools/gophermarttest \
+		-test.v -test.run=^TestGophermart$$ \
+		-gophermart-binary-path=bin/gophermart \
+		-gophermart-host=localhost \
+		-gophermart-port=8080 \
+		-gophermart-database-uri="postgresql://gophermart:gophermart@localhost:5432/gophermart?sslmode=disable" \
+		-accrual-binary-path=cmd/accrual/accrual_darwin_arm64 \
+		-accrual-host=localhost \
+		-accrual-port=$$ACCRUAL_PORT \
+		-accrual-database-uri="postgresql://gophermart:gophermart@localhost:5432/gophermart?sslmode=disable"
+	@kill $$GOPHERMART_PID 2>/dev/null || true
+	@kill $$ACCRUAL_PID 2>/dev/null || true
+	@rm -f .accrual_port
 
 # Полная проверка кода
 check-all: fmt lint test statictest
