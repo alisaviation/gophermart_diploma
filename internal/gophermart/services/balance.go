@@ -7,10 +7,6 @@ import (
 	"github.com/alisaviation/internal/gophermart/models"
 )
 
-type BalanceService interface {
-	GetUserBalance(userID int) (*models.Balance, error)
-}
-
 type BalancesService struct {
 	Balance database.Balance
 }
@@ -25,4 +21,34 @@ func (s *BalancesService) GetUserBalance(userID int) (*models.Balance, error) {
 		return nil, fmt.Errorf("failed to get balance: %w", err)
 	}
 	return balance, nil
+}
+
+func (s *BalancesService) CreateWithdrawal(withdrawal *models.Withdrawal) error {
+	// Проверка уникальности номера заказа
+	exists, err := s.Balance.WithdrawalExists(withdrawal.OrderNumber)
+	if err != nil {
+		return fmt.Errorf("failed to check withdrawal existence: %w", err)
+	}
+	if exists {
+		return fmt.Errorf("withdrawal for order %s already exists", withdrawal.OrderNumber)
+	}
+
+	// Создание списания
+	if err := s.Balance.CreateWithdrawal(withdrawal); err != nil {
+		return fmt.Errorf("failed to create withdrawal: %w", err)
+	}
+
+	return nil
+}
+
+func (s *BalancesService) GetUserWithdrawals(userID int) ([]models.Withdrawal, error) {
+	withdrawals, err := s.Balance.GetWithdrawals(userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get withdrawals: %w", err)
+	}
+	return withdrawals, nil
+}
+
+func (s *BalancesService) WithdrawalExists(orderNumber string) (bool, error) {
+	return s.Balance.WithdrawalExists(orderNumber)
 }

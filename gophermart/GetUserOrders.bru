@@ -7,5 +7,9 @@ meta {
 get {
   url: http://localhost:8080/api/user/orders
   body: none
-  auth: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJsb2dpbiI6InRlc3R1c2VyIiwiaXNzIjoiZ29waGVybWFydCIsImV4cCI6MTc1MjE4NDg5MywiaWF0IjoxNzUyMDk4NDkzfQ.l_qNjKyTohBYw9IW93wsUEyllw99BxhjJhI_xuvLkeI
 }

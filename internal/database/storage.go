@@ -26,7 +26,7 @@ type Order interface {
 
 type Balance interface {
 	GetBalance(userID int) (*models.Balance, error)
-	//UpdateBalance(userID int, current, withdrawn float64) error
-	//CreateWithdrawal(userID int, orderNumber string, sum float64) error
-	//GetWithdrawals(userID int) ([]models.Withdrawal, error)
+	CreateWithdrawal(withdrawal *models.Withdrawal) error
+	WithdrawalExists(orderNumber string) (bool, error)
+	GetWithdrawals(userID int) ([]models.Withdrawal, error)
 }

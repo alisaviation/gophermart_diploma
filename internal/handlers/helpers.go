@@ -3,6 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
+
+	"go.uber.org/zap"
+
+	"github.com/alisaviation/pkg/logger"
 )
 
 func respondWithError(w http.ResponseWriter, code int, message string) {
@@ -20,3 +24,25 @@ func respondWithToken(w http.ResponseWriter, code int, message, token string) {
 		"token":   token,
 	})
 }
+
+func writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}, context ...zap.Field) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+
+	if data == nil {
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		logger.Log.Error("Failed to encode JSON response",
+			append(context, zap.Error(err))...)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
+//func writeJSONError(w http.ResponseWriter, status int, response dto.ErrorResponse, fields ...zap.Field) {
+//	w.Header().Set("Content-Type", "application/json")
+//	w.WriteHeader(status)
+//	json.NewEncoder(w).Encode(response)
+//	logger.Log.Error(response.Error, fields...)
+//}

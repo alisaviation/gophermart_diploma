@@ -8,10 +8,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-type JWTServiceInterface interface {
-	GenerateToken(userID int, login string) (string, error)
-}
-
 type JWTService struct {
 	secretKey []byte
 	issuer    string

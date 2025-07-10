@@ -17,12 +17,6 @@ import (
 	"github.com/alisaviation/pkg/logger"
 )
 
-type OrderService interface {
-	UploadOrder(ctx context.Context, userID int, orderNumber string, goods []dto.AccrualGood) (int, error)
-	GetOrders(userID int) ([]models.Order, error)
-	StartStatusUpdater(ctx context.Context, interval time.Duration)
-}
-
 type OrdersService struct {
 	OrderDB       database.Order
 	AccrualClient *AccrualClient

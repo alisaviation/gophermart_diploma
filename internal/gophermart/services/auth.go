@@ -17,11 +17,6 @@ var (
 	ErrInvalidCredentials = errors.New("invalid credentials")
 )
 
-type AuthService interface {
-	Register(login, password string) (string, error)
-	Login(login, password string) (string, error)
-}
-
 type AuthStructService struct {
 	UserRepo   database.User
 	JwtService JWTServiceInterface

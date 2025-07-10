@@ -49,22 +49,16 @@ func (c *AccrualClient) RegisterOrder(ctx context.Context, orderNumber string, g
 	url := fmt.Sprintf("%s/api/orders", c.baseURL)
 
 	var lastErr error
-	//for attempt := 0; attempt < c.maxRetries; attempt++ {
-	//	if attempt > 0 {
-	//		time.Sleep(c.retryDelay)
-	//	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create request: %w", err)
-		//continue
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.client.Do(req)
 	if err != nil {
 		lastErr = fmt.Errorf("request failed: %w", err)
-		//continue
 	}
 	defer resp.Body.Close()
 
@@ -79,12 +73,9 @@ func (c *AccrualClient) RegisterOrder(ctx context.Context, orderNumber string, g
 		return fmt.Errorf("order already registered")
 	case http.StatusInternalServerError:
 		lastErr = fmt.Errorf("accrual server error")
-		//continue
 	default:
 		lastErr = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
-		//continue
 	}
-	//}
 
 	return lastErr
 }
@@ -103,40 +94,29 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
-			lastErr = fmt.Errorf("failed to create request: %w", err)
-			logger.Log.Error("Failed to create accrual info request",
-				zap.String("order", orderNumber),
-				zap.Error(err))
+			lastErr = fmt.Errorf("failed to create accrual info request: %w", err)
 			continue
 		}
 
-		startTime := time.Now()
+		//startTime := time.Now()
 		resp, err := c.client.Do(req)
-		duration := time.Since(startTime)
+		//duration := time.Since(startTime)
 
 		if err != nil {
-			lastErr = fmt.Errorf("request failed: %w", err)
-			logger.Log.Error("Accrual info request failed",
-				zap.String("order", orderNumber),
-				zap.Duration("duration", duration),
-				zap.Error(err))
+			lastErr = fmt.Errorf("Accrual info request failed: %w", err)
 			continue
 		}
 		defer resp.Body.Close()
 
 		logger.Log.Info("Accrual info response",
 			zap.String("order", orderNumber),
-			zap.Int("status_code", resp.StatusCode),
-			zap.Duration("duration", duration))
+			zap.Int("status_code", resp.StatusCode))
 
 		switch resp.StatusCode {
 		case http.StatusOK:
 			var accrualResp dto.AccrualResponse
 			if err := json.NewDecoder(resp.Body).Decode(&accrualResp); err != nil {
-				lastErr = fmt.Errorf("failed to decode response: %w", err)
-				logger.Log.Error("Failed to decode accrual response",
-					zap.String("order", orderNumber),
-					zap.Error(err))
+				lastErr = fmt.Errorf("failed to decode accrual response: %w", err)
 				continue
 			}
 
@@ -155,19 +135,14 @@ func (c *AccrualClient) GetOrderAccrual(ctx context.Context, orderNumber string)
 			logger.Log.Error("Rate limit exceeded for accrual info",
 				zap.String("order", orderNumber),
 				zap.String("retry_after", retryAfter))
-			lastErr = fmt.Errorf("rate limit exceeded")
+			lastErr = fmt.Errorf("Rate limit exceeded for accrual info")
 			continue
 
 		case http.StatusInternalServerError:
-			logger.Log.Error("Accrual system internal error",
-				zap.String("order", orderNumber))
-			lastErr = fmt.Errorf("accrual server error")
+			lastErr = fmt.Errorf("Accrual system internal error")
 			continue
 
 		default:
-			logger.Log.Error("Unexpected status from accrual system",
-				zap.String("order", orderNumber),
-				zap.Int("status_code", resp.StatusCode))
 			lastErr = fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 			continue
 		}
@@ -192,27 +167,22 @@ func (c *AccrualClient) RegisterGoodReward(ctx context.Context, reward dto.Accru
 
 	body, err := json.Marshal(reward)
 	if err != nil {
-		logger.Log.Error("Failed to marshal reward request",
-			zap.Error(err),
-			zap.Any("reward", reward))
-		return fmt.Errorf("failed to marshal request: %w", err)
+		return fmt.Errorf("Failed to marshal reward request: %w", err)
 	}
 
 	url := fmt.Sprintf("%s/api/goods", c.baseURL)
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
 	if err != nil {
-		logger.Log.Error("Failed to create reward request",
-			zap.Error(err))
-		return fmt.Errorf("failed to create request: %w", err)
+		return fmt.Errorf("failed to create reward request: %w", err)
 	}
-	req.Header.Set("Content-Type", "application/json")
 
+	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.client.Do(req)
 	if err != nil {
 		logger.Log.Error("Reward registration request failed",
 			zap.Error(err))
-		return fmt.Errorf("request failed: %w", err)
+		return fmt.Errorf("Reward registration request failed: %w", err)
 	}
 	defer resp.Body.Close()
 

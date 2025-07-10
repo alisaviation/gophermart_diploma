@@ -128,7 +128,7 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 
 	authHandler := handlers.NewAuthHandler(authService)
 	orderHandler := handlers.NewOrderHandler(orderService, s.ctx)
-	balanceHandler := handlers.NewBalanceHandler(balanceService)
+	balanceHandler := handlers.NewBalanceHandler(balanceService, orderService)
 
 	go orderService.StartStatusUpdater(s.ctx, 15*time.Second)
 
@@ -140,8 +140,8 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 		r.Post("/api/user/orders", orderHandler.UploadOrder)
 		r.Get("/api/user/orders", orderHandler.GetOrders)
 		r.Get("/api/user/balance", balanceHandler.GetUserBalance)
-		//	r.Post("/api/user/balance/withdraw", s.balanceController.Withdraw)
-		//	r.Get("/api/user/withdrawals", s.balanceController.GetWithdrawals)
+		r.Post("/api/user/balance/withdraw", balanceHandler.Withdraw)
+		r.Get("/api/user/withdrawals", balanceHandler.GetWithdrawals)
 	})
 }
 
