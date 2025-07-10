@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const testDatabaseURI = "postgres://gophermart:gophermart@localhost:5432/gophermart_test?sslmode=disable"
+const testDatabaseURI = "postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"
 
 var dbAvailable bool
 

@@ -79,7 +79,7 @@ docker compose up -d
 make build
 
 # Настроить базу данных
-export DATABASE_URI="postgres://user:password@localhost:5432/gophermart?sslmode=disable"
+export DATABASE_URI="postgres://postgres:postgres@localhost:5432/praktikum?sslmode=disable"
 make migrate
 
 # Запустить приложение
