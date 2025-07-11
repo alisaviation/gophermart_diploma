@@ -2,7 +2,6 @@ package config
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"time"
 )
@@ -40,22 +39,26 @@ func Load() (*Config, error) {
 
 // loadFromValues загружает конфигурацию из переданных значений
 func loadFromValues(runAddress, databaseURI, accrualSystemAddress, orderProcessInterval string) (*Config, error) {
-	// Приоритет: env > flag > default
-	if envRunAddress := os.Getenv("RUN_ADDRESS"); envRunAddress != "" {
-		runAddress = envRunAddress
+	// Приоритет: flag > env > default
+	if runAddress == "localhost:8080" {
+		if envRunAddress := os.Getenv("RUN_ADDRESS"); envRunAddress != "" {
+			runAddress = envRunAddress
+		}
 	}
-	if envDatabaseURI := os.Getenv("DATABASE_URI"); envDatabaseURI != "" {
-		databaseURI = envDatabaseURI
-	}
-	if envAccrualSystemAddress := os.Getenv("ACCRUAL_SYSTEM_ADDRESS"); envAccrualSystemAddress != "" {
-		accrualSystemAddress = envAccrualSystemAddress
-	}
-	if envOrderProcessInterval := os.Getenv("ORDER_PROCESS_INTERVAL"); envOrderProcessInterval != "" {
-		orderProcessInterval = envOrderProcessInterval
-	}
-
 	if databaseURI == "" {
-		return nil, fmt.Errorf("DATABASE_URI is required")
+		if envDatabaseURI := os.Getenv("DATABASE_URI"); envDatabaseURI != "" {
+			databaseURI = envDatabaseURI
+		}
+	}
+	if accrualSystemAddress == "" {
+		if envAccrualSystemAddress := os.Getenv("ACCRUAL_SYSTEM_ADDRESS"); envAccrualSystemAddress != "" {
+			accrualSystemAddress = envAccrualSystemAddress
+		}
+	}
+	if orderProcessInterval == "5s" {
+		if envOrderProcessInterval := os.Getenv("ORDER_PROCESS_INTERVAL"); envOrderProcessInterval != "" {
+			orderProcessInterval = envOrderProcessInterval
+		}
 	}
 
 	return &Config{

@@ -62,16 +62,25 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	// Канал для передачи ошибок сервера
+	serverErrors := make(chan error, 1)
+
 	// Запускаем сервер в горутине
 	go func() {
 		log.Printf("Starting server on %s", cfg.RunAddress)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Failed to start server: %v", err)
+			serverErrors <- err
 		}
 	}()
 
-	<-ctx.Done()
-	log.Println("Shutting down server...")
+	// Ждем либо сигнала завершения, либо ошибки сервера
+	select {
+	case <-ctx.Done():
+		log.Println("Shutting down server...")
+	case err := <-serverErrors:
+		log.Printf("Server error: %v", err)
+		log.Println("Shutting down server...")
+	}
 
 	// Graceful shutdown
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
