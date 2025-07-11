@@ -2,14 +2,22 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
+	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 )
+
+func init() {
+	if err := logger.InitLogger(); err != nil {
+		panic(err)
+	}
+}
 
 // MockStorage мок для Storage
 type MockStorage struct {
@@ -240,12 +248,12 @@ func TestOrderProcessor_ProcessOrder_ActualRateLimitError(t *testing.T) {
 	orderNumber := "12345678903"
 
 	// Настраиваем моки - реальная rate limit ошибка
-	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(nil, fmt.Errorf("rate limit exceeded"))
+	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(nil, services.ErrRateLimitExceeded)
 
 	err := processor.ProcessOrder(ctx, orderNumber)
 
 	assert.Error(t, err)
-	assert.Equal(t, "rate limit exceeded", err.Error())
+	assert.True(t, errors.Is(err, services.ErrRateLimitExceeded))
 	mockAccrualService.AssertExpectations(t)
 	mockStorage.AssertNotCalled(t, "UpdateOrderStatus")
 }
@@ -295,7 +303,7 @@ func TestOrderProcessor_ProcessOrdersWithWorkers_RateLimit(t *testing.T) {
 	mockStorage.On("UpdateOrderStatus", ctx, "12345678903", "PROCESSED", (*float64)(nil)).Return(nil)
 
 	// Второй заказ вызывает rate limit
-	mockAccrualService.On("GetOrderInfo", ctx, "12345678904").Return(nil, fmt.Errorf("rate limit exceeded"))
+	mockAccrualService.On("GetOrderInfo", ctx, "12345678904").Return(nil, services.ErrRateLimitExceeded)
 
 	// Третий заказ не должен обрабатываться из-за rate limit
 	mockAccrualService.On("GetOrderInfo", ctx, "12345678905").Return(&models.AccrualResponse{

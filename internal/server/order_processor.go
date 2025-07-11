@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -20,6 +21,7 @@ type OrderProcessor struct {
 	interval       time.Duration
 	stopChan       chan struct{}
 	workerCount    int
+	rateLimitChan  chan time.Duration
 }
 
 // NewOrderProcessor создает новый процессор заказов
@@ -30,6 +32,7 @@ func NewOrderProcessor(storage storage.Storage, accrualService services.AccrualS
 		interval:       interval,
 		stopChan:       make(chan struct{}),
 		workerCount:    workerCount,
+		rateLimitChan:  make(chan time.Duration, 1),
 	}
 }
 
@@ -52,6 +55,9 @@ func (p *OrderProcessor) processLoop() {
 		select {
 		case <-ticker.C:
 			p.ProcessOrders()
+		case cooldown := <-p.rateLimitChan:
+			logger.Logger.Info("Rate limit detected, waiting for cooldown", zap.Duration("cooldown", cooldown))
+			time.Sleep(cooldown)
 		case <-p.stopChan:
 			return
 		}
@@ -141,8 +147,15 @@ func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Ord
 			}
 
 			if err := p.ProcessOrder(ctx, order.Number); err != nil {
-				if err.Error() == "rate limit exceeded" {
-					logger.Logger.Info("Rate limit exceeded, worker stopping")
+				var rateLimitErr *services.RateLimitError
+				if errors.As(err, &rateLimitErr) {
+					logger.Logger.Info("Rate limit exceeded, worker stopping",
+						zap.Duration("retryAfter", rateLimitErr.RetryAfter))
+					// Отправляем cooldown в основной цикл
+					select {
+					case p.rateLimitChan <- rateLimitErr.RetryAfter:
+					default:
+					}
 					// Отправляем сигнал о rate limit неблокирующе
 					select {
 					case rateLimitChan <- struct{}{}:
@@ -167,7 +180,7 @@ func (p *OrderProcessor) ProcessOrder(ctx context.Context, orderNumber string) e
 	accrualInfo, err := p.accrualService.GetOrderInfo(ctx, orderNumber)
 	if err != nil {
 		// Если ошибка связана с превышением лимита запросов, не обновляем статус
-		if err.Error() == "rate limit exceeded" {
+		if errors.Is(err, services.ErrRateLimitExceeded) {
 			return err
 		}
 

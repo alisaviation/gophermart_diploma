@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
@@ -51,9 +52,17 @@ func (s *AccrualService) GetOrderInfo(ctx context.Context, orderNumber string) (
 	case http.StatusNoContent:
 		return nil, nil
 	case http.StatusTooManyRequests:
-		return nil, fmt.Errorf("rate limit exceeded")
+		// Получаем Retry-After заголовок
+		retryAfterStr := resp.Header.Get("Retry-After")
+		var retryAfter time.Duration
+		if retryAfterStr != "" {
+			if seconds, err := strconv.Atoi(retryAfterStr); err == nil {
+				retryAfter = time.Duration(seconds) * time.Second
+			}
+		}
+		return nil, &RateLimitError{RetryAfter: retryAfter}
 	case http.StatusInternalServerError:
-		return nil, fmt.Errorf("internal server error from accrual system")
+		return nil, ErrInternalServer
 	default:
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
