@@ -12,7 +12,6 @@ import (
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/middleware"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
-	"github.com/vglushak/go-musthave-diploma-tpl/internal/storage"
 	"go.uber.org/zap"
 )
 
@@ -55,13 +54,13 @@ func validateOrderNumber(number string) bool {
 
 // Handlers содержит все HTTP обработчики
 type Handlers struct {
-	storage        storage.Storage
+	storage        Storage
 	authService    *services.AuthService
 	accrualService *services.AccrualService
 }
 
 // NewHandlers создает новые обработчики
-func NewHandlers(storage storage.Storage, authService *services.AuthService, accrualService *services.AccrualService) *Handlers {
+func NewHandlers(storage Storage, authService *services.AuthService, accrualService *services.AccrualService) *Handlers {
 	return &Handlers{
 		storage:        storage,
 		authService:    authService,

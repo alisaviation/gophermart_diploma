@@ -10,13 +10,12 @@ import (
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
-	"github.com/vglushak/go-musthave-diploma-tpl/internal/storage"
 	"go.uber.org/zap"
 )
 
 // OrderProcessor обрабатывает заказы в фоновом режиме
 type OrderProcessor struct {
-	storage        storage.Storage
+	storage        Storage
 	accrualService services.AccrualServiceIface
 	interval       time.Duration
 	stopChan       chan struct{}
@@ -25,7 +24,7 @@ type OrderProcessor struct {
 }
 
 // NewOrderProcessor создает новый процессор заказов
-func NewOrderProcessor(storage storage.Storage, accrualService services.AccrualServiceIface, interval time.Duration, workerCount int) *OrderProcessor {
+func NewOrderProcessor(storage Storage, accrualService services.AccrualServiceIface, interval time.Duration, workerCount int) *OrderProcessor {
 	return &OrderProcessor{
 		storage:        storage,
 		accrualService: accrualService,

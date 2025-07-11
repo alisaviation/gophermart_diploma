@@ -32,7 +32,7 @@ generate-mocks:
 		go install github.com/vektra/mockery/v2@latest; \
 	fi
 	@export PATH=$$PATH:$$(go env GOPATH)/bin && \
-	mockery --dir internal/storage --name Storage --output internal/storage/mocks --outpkg mocks --with-expecter && \
+	mockery --dir internal/server --name Storage --output internal/storage/mocks --outpkg mocks --with-expecter && \
 	mockery --dir internal/services --name AccrualServiceIface --output internal/services/mocks --outpkg mocks --with-expecter
 
 # Миграции базы данных
