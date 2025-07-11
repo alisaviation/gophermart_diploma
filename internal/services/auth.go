@@ -67,7 +67,7 @@ func (s *AuthService) ValidateJWT(tokenString string) (*jwt.RegisteredClaims, er
 		return claims, nil
 	}
 
-	return nil, fmt.Errorf("invalid token")
+	return nil, errors.New("invalid token")
 }
 
 // GenerateSecret генерирует секретный ключ для JWT
