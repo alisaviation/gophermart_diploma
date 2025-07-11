@@ -32,6 +32,9 @@ type Storage interface {
 	// Transactional withdrawal - проверяет баланс и создает списание в одной транзакции
 	ProcessWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error)
 
+	// Атомарное обновление статуса заказа и баланса пользователя
+	UpdateOrderStatusAndBalanceTx(ctx context.Context, orderNumber string, status string, accrual *float64, userID int64, newCurrent, withdrawn float64) error
+
 	// Database methods
 	Ping(ctx context.Context) error
 	Close() error

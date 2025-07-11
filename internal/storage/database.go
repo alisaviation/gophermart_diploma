@@ -340,3 +340,33 @@ func (s *DatabaseStorage) ProcessWithdrawal(ctx context.Context, userID int64, o
 
 	return &withdrawal, nil
 }
+
+// UpdateOrderStatusAndBalanceTx атомарно обновляет статус заказа и баланс пользователя
+func (s *DatabaseStorage) UpdateOrderStatusAndBalanceTx(ctx context.Context, orderNumber string, status string, accrual *float64, userID int64, newCurrent, withdrawn float64) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Обновляем статус заказа
+	orderQuery := `UPDATE orders SET status = $1, accrual = $2 WHERE number = $3`
+	_, err = tx.Exec(ctx, orderQuery, status, accrual, orderNumber)
+	if err != nil {
+		return fmt.Errorf("failed to update order status: %w", err)
+	}
+
+	// Обновляем баланс
+	balanceQuery := `INSERT INTO balances (user_id, current, withdrawn) VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE SET current = $2, withdrawn = $3`
+	_, err = tx.Exec(ctx, balanceQuery, userID, newCurrent, withdrawn)
+	if err != nil {
+		return fmt.Errorf("failed to update balance: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}

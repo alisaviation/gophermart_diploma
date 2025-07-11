@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -106,6 +107,11 @@ func (m *MockStorage) ProcessWithdrawal(ctx context.Context, userID int64, order
 	return args.Get(0).(*models.Withdrawal), args.Error(1)
 }
 
+func (m *MockStorage) UpdateOrderStatusAndBalanceTx(ctx context.Context, orderNumber string, status string, accrual *float64, userID int64, newCurrent, withdrawn float64) error {
+	args := m.Called(ctx, orderNumber, status, accrual, userID, newCurrent, withdrawn)
+	return args.Error(0)
+}
+
 func (m *MockStorage) Ping(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
@@ -176,9 +182,7 @@ func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 		Accrual: &accrualValue,
 	}, nil)
 
-	mockStorage.On("UpdateOrderStatus", ctx, orderNumber, "PROCESSED", &accrualValue).Return(nil)
-
-	// Добавляем ожидания для обновления баланса
+	// Добавляем ожидания для получения заказа и баланса
 	mockStorage.On("GetOrderByNumber", ctx, orderNumber).Return(&models.Order{
 		ID:     1,
 		UserID: userID,
@@ -192,7 +196,8 @@ func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 		Withdrawn: 0.0,
 	}, nil)
 
-	mockStorage.On("UpdateBalance", ctx, userID, 150.0, 0.0).Return(nil)
+	// Мок для транзакционного обновления
+	mockStorage.On("UpdateOrderStatusAndBalanceTx", ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(nil)
 
 	err := processor.ProcessOrder(ctx, orderNumber)
 
@@ -209,7 +214,7 @@ func TestOrderProcessor_ProcessOrder_InvalidOrder(t *testing.T) {
 	ctx := context.Background()
 	orderNumber := "12345678903"
 
-	// Настраиваем моки - заказ не найден
+	// Моки - заказ не найден
 	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(nil, nil)
 	mockStorage.On("UpdateOrderStatus", ctx, orderNumber, "INVALID", (*float64)(nil)).Return(nil)
 
@@ -228,7 +233,7 @@ func TestOrderProcessor_ProcessOrder_RateLimitError(t *testing.T) {
 	ctx := context.Background()
 	orderNumber := "12345678903"
 
-	// Настраиваем моки - превышение лимита запросов
+	// Моки - превышение лимита запросов
 	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(nil, assert.AnError)
 	mockStorage.On("UpdateOrderStatus", ctx, orderNumber, "INVALID", (*float64)(nil)).Return(nil)
 
@@ -247,7 +252,7 @@ func TestOrderProcessor_ProcessOrder_ActualRateLimitError(t *testing.T) {
 	ctx := context.Background()
 	orderNumber := "12345678903"
 
-	// Настраиваем моки - реальная rate limit ошибка
+	// Моки - реальная rate limit ошибка
 	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(nil, services.ErrRateLimitExceeded)
 
 	err := processor.ProcessOrder(ctx, orderNumber)
@@ -354,6 +359,89 @@ func TestOrderProcessor_ProcessOrdersWithWorkers_Success(t *testing.T) {
 	processor.ProcessOrdersWithWorkers(ctx, orders)
 
 	// Проверяем, что все заказы были обработаны
+	mockAccrualService.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestOrderProcessor_ProcessOrder_TransactionalUpdate(t *testing.T) {
+	mockStorage := &MockStorage{}
+	mockAccrualService := &MockAccrualService{}
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+
+	ctx := context.Background()
+	orderNumber := "12345678903"
+	accrualValue := 100.0
+	userID := int64(1)
+
+	// Моки для успешной обработки с начислением
+	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(&models.AccrualResponse{
+		Order:   orderNumber,
+		Status:  "PROCESSED",
+		Accrual: &accrualValue,
+	}, nil)
+
+	// Моки для получения заказа и баланса
+	mockStorage.On("GetOrderByNumber", ctx, orderNumber).Return(&models.Order{
+		ID:     1,
+		UserID: userID,
+		Number: orderNumber,
+		Status: "NEW",
+	}, nil)
+
+	mockStorage.On("GetBalance", ctx, userID).Return(&models.Balance{
+		UserID:    userID,
+		Current:   50.0,
+		Withdrawn: 0.0,
+	}, nil)
+
+	// Мок для транзакционного обновления
+	mockStorage.On("UpdateOrderStatusAndBalanceTx", ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(nil)
+
+	err := processor.ProcessOrder(ctx, orderNumber)
+
+	assert.NoError(t, err)
+	mockAccrualService.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestOrderProcessor_ProcessOrder_TransactionalUpdate_Error(t *testing.T) {
+	mockStorage := &MockStorage{}
+	mockAccrualService := &MockAccrualService{}
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+
+	ctx := context.Background()
+	orderNumber := "12345678903"
+	accrualValue := 100.0
+	userID := int64(1)
+
+	// Моки для успешной обработки с начислением
+	mockAccrualService.On("GetOrderInfo", ctx, orderNumber).Return(&models.AccrualResponse{
+		Order:   orderNumber,
+		Status:  "PROCESSED",
+		Accrual: &accrualValue,
+	}, nil)
+
+	// Моки для получения заказа и баланса
+	mockStorage.On("GetOrderByNumber", ctx, orderNumber).Return(&models.Order{
+		ID:     1,
+		UserID: userID,
+		Number: orderNumber,
+		Status: "NEW",
+	}, nil)
+
+	mockStorage.On("GetBalance", ctx, userID).Return(&models.Balance{
+		UserID:    userID,
+		Current:   50.0,
+		Withdrawn: 0.0,
+	}, nil)
+
+	// Мок для ошибки транзакционного обновления
+	mockStorage.On("UpdateOrderStatusAndBalanceTx", ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(fmt.Errorf("transaction failed"))
+
+	err := processor.ProcessOrder(ctx, orderNumber)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to update order status and balance transactionally")
 	mockAccrualService.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 }

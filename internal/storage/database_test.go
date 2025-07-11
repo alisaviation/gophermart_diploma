@@ -197,6 +197,57 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 		assert.Equal(t, "testorder456", withdrawals[0].Order)
 		assert.Equal(t, "testorder123", withdrawals[1].Order)
 	})
+
+	t.Run("UpdateOrderStatusAndBalanceTx", func(t *testing.T) {
+		user, err := storage.GetUserByLogin(ctx, "testuser")
+		require.NoError(t, err)
+		require.NotNil(t, user)
+
+		// Создаем заказ для тестирования
+		order, err := storage.CreateOrder(ctx, user.ID, "12345678903")
+		require.NoError(t, err)
+
+		// Устанавливаем начальный баланс
+		err = storage.UpdateBalance(ctx, user.ID, 100.0, 0.0)
+		require.NoError(t, err)
+
+		// Атомарное обновление статуса заказа и баланса
+		accrual := 50.0
+		err = storage.UpdateOrderStatusAndBalanceTx(ctx, order.Number, "PROCESSED", &accrual, user.ID, 150.0, 0.0)
+		require.NoError(t, err)
+
+		// Статус заказа обновился
+		updatedOrder, err := storage.GetOrderByNumber(ctx, order.Number)
+		require.NoError(t, err)
+		assert.Equal(t, "PROCESSED", updatedOrder.Status)
+		assert.Equal(t, &accrual, updatedOrder.Accrual)
+
+		// Баланс обновился
+		balance, err := storage.GetBalance(ctx, user.ID)
+		require.NoError(t, err)
+		assert.Equal(t, 150.0, balance.Current)
+		assert.Equal(t, 0.0, balance.Withdrawn)
+	})
+
+	t.Run("UpdateOrderStatusAndBalanceTx_WithoutAccrual", func(t *testing.T) {
+		user, err := storage.GetUserByLogin(ctx, "testuser")
+		require.NoError(t, err)
+		require.NotNil(t, user)
+
+		// Создаем еще один заказ
+		order, err := storage.CreateOrder(ctx, user.ID, "98765432109")
+		require.NoError(t, err)
+
+		// Обновление без начисления (accrual = nil)
+		err = storage.UpdateOrderStatusAndBalanceTx(ctx, order.Number, "PROCESSED", nil, user.ID, 150.0, 0.0)
+		require.NoError(t, err)
+
+		// Статус заказа обновился
+		updatedOrder, err := storage.GetOrderByNumber(ctx, order.Number)
+		require.NoError(t, err)
+		assert.Equal(t, "PROCESSED", updatedOrder.Status)
+		assert.Nil(t, updatedOrder.Accrual)
+	})
 }
 
 // TestDatabaseStorage_Concurrent тестирует конкурентный доступ к базе данных
@@ -230,12 +281,11 @@ func TestDatabaseStorage_Concurrent(t *testing.T) {
 			}(i)
 		}
 
-		// Ждем завершения всех горутин
 		for i := 0; i < numGoroutines; i++ {
 			<-done
 		}
 
-		// Проверяем, что все заказы созданы
+		// Все заказы созданы
 		orders, err := storage.GetOrdersByUserID(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Len(t, orders, numGoroutines)
@@ -271,7 +321,7 @@ func TestDatabaseStorage_Transaction(t *testing.T) {
 		err = storage.UpdateBalance(ctx, user.ID, 900.0, 100.0)
 		require.NoError(t, err)
 
-		// Проверяем финальное состояние
+		// Финальное состояние
 		balance, err := storage.GetBalance(ctx, user.ID)
 		require.NoError(t, err)
 		assert.Equal(t, 900.0, balance.Current)

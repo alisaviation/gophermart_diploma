@@ -199,12 +199,7 @@ func (p *OrderProcessor) ProcessOrder(ctx context.Context, orderNumber string) e
 		accrual = accrualInfo.Accrual
 	}
 
-	// Обновляем статус заказа
-	if err := p.storage.UpdateOrderStatus(ctx, orderNumber, accrualInfo.Status, accrual); err != nil {
-		return fmt.Errorf("failed to update order status: %w", err)
-	}
-
-	// Если заказ обработан и есть начисление, обновляем баланс пользователя
+	// Если заказ обработан и есть начисление, обновляем статус и баланс в одной транзакции
 	if accrualInfo.Status == "PROCESSED" && accrual != nil && *accrual > 0 {
 		// Получаем заказ для определения пользователя
 		order, err := p.storage.GetOrderByNumber(ctx, orderNumber)
@@ -218,11 +213,17 @@ func (p *OrderProcessor) ProcessOrder(ctx context.Context, orderNumber string) e
 			return fmt.Errorf("failed to get balance: %w", err)
 		}
 
-		// Обновляем баланс
+		// Обновляем статус заказа и баланс пользователя атомарно
 		newCurrent := balance.Current + *accrual
-		if err := p.storage.UpdateBalance(ctx, order.UserID, newCurrent, balance.Withdrawn); err != nil {
-			return fmt.Errorf("failed to update balance: %w", err)
+		if err := p.storage.UpdateOrderStatusAndBalanceTx(ctx, orderNumber, accrualInfo.Status, accrual, order.UserID, newCurrent, balance.Withdrawn); err != nil {
+			return fmt.Errorf("failed to update order status and balance transactionally: %w", err)
 		}
+		return nil
+	}
+
+	// В остальных случаях просто обновляем статус заказа
+	if err := p.storage.UpdateOrderStatus(ctx, orderNumber, accrualInfo.Status, accrual); err != nil {
+		return fmt.Errorf("failed to update order status: %w", err)
 	}
 
 	return nil
