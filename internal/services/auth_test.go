@@ -4,13 +4,14 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewAuthService(t *testing.T) {
 	jwtSecret := "test-secret"
 	service := NewAuthService(jwtSecret)
 
-	assert.NotNil(t, service)
+	require.NotNil(t, service)
 	assert.Equal(t, []byte(jwtSecret), service.jwtSecret)
 }
 
@@ -20,7 +21,7 @@ func TestAuthService_HashPassword(t *testing.T) {
 
 	hash, err := service.HashPassword(password)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, hash)
 	assert.NotEqual(t, password, hash)
 }
@@ -30,7 +31,7 @@ func TestAuthService_CheckPassword(t *testing.T) {
 	password := "testpassword"
 
 	hash, err := service.HashPassword(password)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Проверяем правильный пароль
 	err = service.CheckPassword(hash, password)
@@ -48,7 +49,7 @@ func TestAuthService_GenerateJWT(t *testing.T) {
 
 	token, err := service.GenerateJWT(userID, login)
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, token)
 }
 
@@ -59,13 +60,13 @@ func TestAuthService_ValidateJWT(t *testing.T) {
 
 	// Генерируем токен
 	token, err := service.GenerateJWT(userID, login)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Валидируем токен
 	claims, err := service.ValidateJWT(token)
 
-	assert.NoError(t, err)
-	assert.NotNil(t, claims)
+	require.NoError(t, err)
+	require.NotNil(t, claims)
 	assert.Equal(t, "123", claims.Subject)
 	assert.Contains(t, claims.Audience, login)
 }
@@ -88,7 +89,7 @@ func TestAuthService_ValidateJWT_WrongSecret(t *testing.T) {
 
 	// Генерируем токен с одним секретом
 	token, err := service1.GenerateJWT(userID, login)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Пытаемся валидировать с другим секретом
 	claims, err := service2.ValidateJWT(token)
@@ -100,7 +101,7 @@ func TestAuthService_ValidateJWT_WrongSecret(t *testing.T) {
 func TestGenerateSecret(t *testing.T) {
 	secret, err := GenerateSecret()
 
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotEmpty(t, secret)
 	assert.Len(t, secret, 44) // base64 encoded 32 bytes
 }

@@ -15,7 +15,7 @@ const testDatabaseURI = "postgres://postgres:postgres@localhost:5432/praktikum?s
 var dbAvailable bool
 
 func TestMain(m *testing.M) {
-	storage, err := NewDatabaseStorage(testDatabaseURI)
+	storage, err := NewDatabaseStorage(context.Background(), testDatabaseURI)
 	if err != nil {
 		os.Exit(0) // База недоступна — пропускаем все тесты
 	}
@@ -29,7 +29,7 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 	if !dbAvailable {
 		t.Skip("Database not available, skipping test")
 	}
-	storage, err := NewDatabaseStorage(testDatabaseURI)
+	storage, err := NewDatabaseStorage(context.Background(), testDatabaseURI)
 	if err != nil {
 		t.Skipf("Skipping database tests: failed to connect to database: %v", err)
 	}
@@ -255,7 +255,7 @@ func TestDatabaseStorage_Concurrent(t *testing.T) {
 	if !dbAvailable {
 		t.Skip("Database not available, skipping test")
 	}
-	storage, err := NewDatabaseStorage(testDatabaseURI)
+	storage, err := NewDatabaseStorage(context.Background(), testDatabaseURI)
 	if err != nil {
 		t.Skipf("Skipping database tests: failed to connect to database: %v", err)
 	}
@@ -297,7 +297,7 @@ func TestDatabaseStorage_Transaction(t *testing.T) {
 	if !dbAvailable {
 		t.Skip("Database not available, skipping test")
 	}
-	storage, err := NewDatabaseStorage(testDatabaseURI)
+	storage, err := NewDatabaseStorage(context.Background(), testDatabaseURI)
 	if err != nil {
 		t.Skipf("Skipping database tests: failed to connect to database: %v", err)
 	}

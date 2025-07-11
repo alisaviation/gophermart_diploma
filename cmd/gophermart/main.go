@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// Подключаемся к базе данных
-	dbStorage, err := storage.NewDatabaseStorage(cfg.DatabaseURI)
+	dbStorage, err := storage.NewDatabaseStorage(context.Background(), cfg.DatabaseURI)
 	if err != nil {
 		logger.Logger.Fatal("Failed to connect to database", zap.Error(err))
 	}

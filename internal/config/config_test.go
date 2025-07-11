@@ -102,8 +102,8 @@ func TestLoadWithEnvironment(t *testing.T) {
 		os.Unsetenv("ORDER_PROCESS_INTERVAL")
 
 		cfg, err := loadFromValues("localhost:8080", "", "", "5s", 5)
-		assert.NoError(t, err)
-		assert.NotNil(t, cfg)
+		require.NoError(t, err)
+		require.NotNil(t, cfg)
 		assert.Equal(t, "", cfg.DatabaseURI)
 	})
 

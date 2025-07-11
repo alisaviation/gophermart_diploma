@@ -17,14 +17,14 @@ type DatabaseStorage struct {
 }
 
 // NewDatabaseStorage создает новое подключение к базе данных
-func NewDatabaseStorage(databaseURI string) (*DatabaseStorage, error) {
-	pool, err := pgxpool.New(context.Background(), databaseURI)
+func NewDatabaseStorage(ctx context.Context, databaseURI string) (*DatabaseStorage, error) {
+	pool, err := pgxpool.New(ctx, databaseURI)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	// Проверяем соединение
-	if err := pool.Ping(context.Background()); err != nil {
+	if err := pool.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 

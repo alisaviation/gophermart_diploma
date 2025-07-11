@@ -9,15 +9,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewAccrualService(t *testing.T) {
 	baseURL := "http://localhost:8080"
 	service := NewAccrualService(baseURL)
 
-	assert.NotNil(t, service)
+	require.NotNil(t, service)
 	assert.Equal(t, baseURL, service.baseURL)
-	assert.NotNil(t, service.client)
+	require.NotNil(t, service.client)
 	assert.Equal(t, 3, service.maxRetries)
 	assert.Equal(t, 100*time.Millisecond, service.baseDelay)
 	assert.Equal(t, 5*time.Second, service.maxDelay)
@@ -31,9 +32,9 @@ func TestNewAccrualServiceWithRetry(t *testing.T) {
 
 	service := NewAccrualServiceWithRetry(baseURL, maxRetries, baseDelay, maxDelay)
 
-	assert.NotNil(t, service)
+	require.NotNil(t, service)
 	assert.Equal(t, baseURL, service.baseURL)
-	assert.NotNil(t, service.client)
+	require.NotNil(t, service.client)
 	assert.Equal(t, maxRetries, service.maxRetries)
 	assert.Equal(t, baseDelay, service.baseDelay)
 	assert.Equal(t, maxDelay, service.maxDelay)
@@ -60,11 +61,11 @@ func TestAccrualService_GetOrderInfo_Success(t *testing.T) {
 
 	result, err := service.GetOrderInfo(ctx, "12345678903")
 
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 	assert.Equal(t, "12345678903", result.Order)
 	assert.Equal(t, "PROCESSED", result.Status)
-	assert.NotNil(t, result.Accrual)
+	require.NotNil(t, result.Accrual)
 	assert.Equal(t, 500.0, *result.Accrual)
 }
 
@@ -171,8 +172,8 @@ func TestAccrualService_GetOrderInfo_RetrySuccess(t *testing.T) {
 
 	result, err := service.GetOrderInfo(ctx, "12345678903")
 
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
+	require.NoError(t, err)
+	require.NotNil(t, result)
 	assert.Equal(t, "12345678903", result.Order)
 	assert.Equal(t, "PROCESSED", result.Status)
 	assert.Equal(t, 3, attempts) // Проверяем, что было 3 попытки
