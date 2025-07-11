@@ -99,7 +99,7 @@ autotest: build
 	@ACCRUAL_PID=$$!
 	@sleep 2
 	@echo "Starting gophermart server..."
-	@ACCRUAL_PORT=$$(cat .accrual_port) && RUN_ADDRESS="localhost:8080" DATABASE_URI="postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable" ACCRUAL_SYSTEM_ADDRESS="http://localhost:$$ACCRUAL_PORT" ./bin/gophermart &
+	@ACCRUAL_PORT=$$(cat .accrual_port) && RUN_ADDRESS="localhost:8080" DATABASE_URI="postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable" ACCRUAL_SYSTEM_ADDRESS="http://localhost:$$ACCRUAL_PORT" ORDER_PROCESS_INTERVAL="5s" ./bin/gophermart &
 	@GOPHERMART_PID=$$!
 	@sleep 3
 	@echo "Running gophermarttest..."

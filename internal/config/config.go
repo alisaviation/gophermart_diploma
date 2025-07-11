@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 )
 
 // Config содержит конфигурацию сервера
@@ -11,6 +12,12 @@ type Config struct {
 	RunAddress           string
 	DatabaseURI          string
 	AccrualSystemAddress string
+	OrderProcessInterval string
+}
+
+// GetOrderProcessInterval возвращает интервал обработки заказов как time.Duration
+func (c *Config) GetOrderProcessInterval() (time.Duration, error) {
+	return time.ParseDuration(c.OrderProcessInterval)
 }
 
 // Load загружает конфигурацию из флагов и переменных окружения
@@ -19,31 +26,42 @@ func Load() (*Config, error) {
 		flagRunAddress           string
 		flagDatabaseURI          string
 		flagAccrualSystemAddress string
+		flagOrderProcessInterval string
 	)
 
 	flag.StringVar(&flagRunAddress, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&flagDatabaseURI, "d", "", "database URI")
 	flag.StringVar(&flagAccrualSystemAddress, "r", "", "accrual system address")
+	flag.StringVar(&flagOrderProcessInterval, "i", "5s", "order processing interval")
 	flag.Parse()
 
+	return loadFromValues(flagRunAddress, flagDatabaseURI, flagAccrualSystemAddress, flagOrderProcessInterval)
+}
+
+// loadFromValues загружает конфигурацию из переданных значений
+func loadFromValues(runAddress, databaseURI, accrualSystemAddress, orderProcessInterval string) (*Config, error) {
 	// Приоритет: env > flag > default
 	if envRunAddress := os.Getenv("RUN_ADDRESS"); envRunAddress != "" {
-		flagRunAddress = envRunAddress
+		runAddress = envRunAddress
 	}
 	if envDatabaseURI := os.Getenv("DATABASE_URI"); envDatabaseURI != "" {
-		flagDatabaseURI = envDatabaseURI
+		databaseURI = envDatabaseURI
 	}
 	if envAccrualSystemAddress := os.Getenv("ACCRUAL_SYSTEM_ADDRESS"); envAccrualSystemAddress != "" {
-		flagAccrualSystemAddress = envAccrualSystemAddress
+		accrualSystemAddress = envAccrualSystemAddress
+	}
+	if envOrderProcessInterval := os.Getenv("ORDER_PROCESS_INTERVAL"); envOrderProcessInterval != "" {
+		orderProcessInterval = envOrderProcessInterval
 	}
 
-	if flagDatabaseURI == "" {
+	if databaseURI == "" {
 		return nil, fmt.Errorf("DATABASE_URI is required")
 	}
 
 	return &Config{
-		RunAddress:           flagRunAddress,
-		DatabaseURI:          flagDatabaseURI,
-		AccrualSystemAddress: flagAccrualSystemAddress,
+		RunAddress:           runAddress,
+		DatabaseURI:          databaseURI,
+		AccrualSystemAddress: accrualSystemAddress,
+		OrderProcessInterval: orderProcessInterval,
 	}, nil
 }

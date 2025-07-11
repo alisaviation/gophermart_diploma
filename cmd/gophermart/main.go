@@ -42,8 +42,13 @@ func main() {
 	// Создаем роутер
 	router := server.NewRouter(dbStorage, authService, accrualService)
 
+	orderProcessInterval, err := cfg.GetOrderProcessInterval()
+	if err != nil {
+		log.Fatalf("Failed to parse order process interval: %v", err)
+	}
+
 	// Создаем процессор заказов
-	orderProcessor := server.NewOrderProcessor(dbStorage, accrualService, 5*time.Second)
+	orderProcessor := server.NewOrderProcessor(dbStorage, accrualService, orderProcessInterval)
 	orderProcessor.Start()
 	defer orderProcessor.Stop()
 
@@ -53,9 +58,9 @@ func main() {
 		Handler: router.GetRouter(),
 	}
 
-	// Канал для graceful shutdown
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+	// Обработкой сигналов для graceful shutdown
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 
 	// Запускаем сервер в горутине
 	go func() {
@@ -65,14 +70,14 @@ func main() {
 		}
 	}()
 
-	<-stop
+	<-ctx.Done()
 	log.Println("Shutting down server...")
 
 	// Graceful shutdown
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Printf("Server shutdown error: %v", err)
 	}
 

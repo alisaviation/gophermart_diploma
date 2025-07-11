@@ -23,6 +23,7 @@ services:
       RUN_ADDRESS: ":8080"
       DATABASE_URI: "postgres://postgres:postgres@postgres:5432/praktikum?sslmode=disable"
       ACCRUAL_SYSTEM_ADDRESS: "http://accrual:8080"
+      ORDER_PROCESS_INTERVAL: "5s"
     ports:
       - "8080:8080"
     depends_on:
