@@ -3,11 +3,14 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
+	"sync"
 	"time"
 
+	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
+	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/storage"
+	"go.uber.org/zap"
 )
 
 // OrderProcessor обрабатывает заказы в фоновом режиме
@@ -16,15 +19,17 @@ type OrderProcessor struct {
 	accrualService services.AccrualServiceIface
 	interval       time.Duration
 	stopChan       chan struct{}
+	workerCount    int
 }
 
 // NewOrderProcessor создает новый процессор заказов
-func NewOrderProcessor(storage storage.Storage, accrualService services.AccrualServiceIface, interval time.Duration) *OrderProcessor {
+func NewOrderProcessor(storage storage.Storage, accrualService services.AccrualServiceIface, interval time.Duration, workerCount int) *OrderProcessor {
 	return &OrderProcessor{
 		storage:        storage,
 		accrualService: accrualService,
 		interval:       interval,
 		stopChan:       make(chan struct{}),
+		workerCount:    workerCount,
 	}
 }
 
@@ -65,7 +70,7 @@ func (p *OrderProcessor) ProcessOrders() {
 		// Получаем заказы со статусом NEW и PROCESSING с пагинацией
 		orders, err := p.storage.GetOrdersByStatusPaginated(ctx, []string{"NEW", "PROCESSING"}, batchSize, offset)
 		if err != nil {
-			log.Printf("Failed to get orders for processing: %v", err)
+			logger.Logger.Error("Failed to get orders for processing", zap.Error(err))
 			return
 		}
 
@@ -73,20 +78,86 @@ func (p *OrderProcessor) ProcessOrders() {
 			break
 		}
 
-		log.Printf("Processing batch of %d orders (offset: %d)...", len(orders), offset)
+		logger.Logger.Info("Processing batch of orders",
+			zap.Int("count", len(orders)),
+			zap.Int("offset", offset),
+			zap.Int("workers", p.workerCount))
 
-		for _, order := range orders {
-			if err := p.ProcessOrder(ctx, order.Number); err != nil {
-				log.Printf("Failed to process order %s: %v", order.Number, err)
-				continue
-			}
-		}
+		p.ProcessOrdersWithWorkers(ctx, orders)
 
 		if len(orders) < batchSize {
 			break
 		}
 
 		offset += batchSize
+	}
+}
+
+// ProcessOrdersWithWorkers обрабатывает заказы параллельно
+func (p *OrderProcessor) ProcessOrdersWithWorkers(ctx context.Context, orders []models.Order) {
+	// Канал для передачи заказов воркерам
+	orderChan := make(chan models.Order, len(orders))
+
+	// Канал для сигнализации о rate limit
+	rateLimitChan := make(chan struct{}, 1)
+
+	// WaitGroup для ожидания завершения всех воркеров
+	var wg sync.WaitGroup
+
+	// Запускаем воркеры
+	for i := 0; i < p.workerCount; i++ {
+		wg.Add(1)
+		go p.worker(ctx, orderChan, rateLimitChan, &wg)
+	}
+
+	// Отправляем заказы в канал
+	go func() {
+		defer close(orderChan)
+		for _, order := range orders {
+			select {
+			case orderChan <- order:
+			case <-rateLimitChan:
+				// Получили сигнал о rate limit, прекращаем отправку
+				logger.Logger.Info("Rate limit detected, stopping order processing")
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	wg.Wait()
+}
+
+// worker обрабатывает заказы из канала
+func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Order, rateLimitChan chan<- struct{}, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for {
+		select {
+		case order, ok := <-orderChan:
+			if !ok {
+				return
+			}
+
+			if err := p.ProcessOrder(ctx, order.Number); err != nil {
+				if err.Error() == "rate limit exceeded" {
+					logger.Logger.Info("Rate limit exceeded, worker stopping")
+					// Отправляем сигнал о rate limit неблокирующе
+					select {
+					case rateLimitChan <- struct{}{}:
+					default:
+					}
+					return
+				}
+				logger.Logger.Error("Failed to process order",
+					zap.String("orderNumber", order.Number),
+					zap.Error(err))
+			}
+
+		case <-ctx.Done():
+			return
+		}
 	}
 }
 

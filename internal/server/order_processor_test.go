@@ -126,7 +126,7 @@ func TestNewOrderProcessor(t *testing.T) {
 	mockAccrualService := &MockAccrualService{}
 	interval := 5 * time.Second
 
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval, 5)
 
 	assert.NotNil(t, processor)
 	assert.Equal(t, mockStorage, processor.storage)
@@ -140,7 +140,7 @@ func TestOrderProcessor_StartStop(t *testing.T) {
 	mockAccrualService := &MockAccrualService{}
 	interval := 100 * time.Millisecond
 
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval, 5)
 
 	processor.Start()
 
@@ -154,7 +154,7 @@ func TestOrderProcessor_StartStop(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 	mockStorage := &MockStorage{}
 	mockAccrualService := &MockAccrualService{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -196,7 +196,7 @@ func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_InvalidOrder(t *testing.T) {
 	mockStorage := &MockStorage{}
 	mockAccrualService := &MockAccrualService{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -215,7 +215,7 @@ func TestOrderProcessor_ProcessOrder_InvalidOrder(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_RateLimitError(t *testing.T) {
 	mockStorage := &MockStorage{}
 	mockAccrualService := &MockAccrualService{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -234,7 +234,7 @@ func TestOrderProcessor_ProcessOrder_RateLimitError(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_ActualRateLimitError(t *testing.T) {
 	mockStorage := &MockStorage{}
 	mockAccrualService := &MockAccrualService{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -253,7 +253,7 @@ func TestOrderProcessor_ProcessOrder_ActualRateLimitError(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_NoAccrual(t *testing.T) {
 	mockStorage := &MockStorage{}
 	mockAccrualService := &MockAccrualService{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -270,6 +270,82 @@ func TestOrderProcessor_ProcessOrder_NoAccrual(t *testing.T) {
 	err := processor.ProcessOrder(ctx, orderNumber)
 
 	assert.NoError(t, err)
+	mockAccrualService.AssertExpectations(t)
+	mockStorage.AssertExpectations(t)
+}
+
+func TestOrderProcessor_ProcessOrdersWithWorkers_RateLimit(t *testing.T) {
+	mockStorage := &MockStorage{}
+	mockAccrualService := &MockAccrualService{}
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+
+	ctx := context.Background()
+	orders := []models.Order{
+		{ID: 1, UserID: 1, Number: "12345678903", Status: "NEW"},
+		{ID: 2, UserID: 2, Number: "12345678904", Status: "PROCESSING"},
+		{ID: 3, UserID: 3, Number: "12345678905", Status: "NEW"},
+	}
+
+	// Первый заказ успешно обрабатывается
+	mockAccrualService.On("GetOrderInfo", ctx, "12345678903").Return(&models.AccrualResponse{
+		Order:   "12345678903",
+		Status:  "PROCESSED",
+		Accrual: nil,
+	}, nil)
+	mockStorage.On("UpdateOrderStatus", ctx, "12345678903", "PROCESSED", (*float64)(nil)).Return(nil)
+
+	// Второй заказ вызывает rate limit
+	mockAccrualService.On("GetOrderInfo", ctx, "12345678904").Return(nil, fmt.Errorf("rate limit exceeded"))
+
+	// Третий заказ не должен обрабатываться из-за rate limit
+	mockAccrualService.On("GetOrderInfo", ctx, "12345678905").Return(&models.AccrualResponse{
+		Order:   "12345678905",
+		Status:  "PROCESSED",
+		Accrual: nil,
+	}, nil)
+	mockStorage.On("UpdateOrderStatus", ctx, "12345678905", "PROCESSED", (*float64)(nil)).Return(nil)
+
+	// Вызываем ProcessOrdersWithWorkers напрямую
+	processor.ProcessOrdersWithWorkers(ctx, orders)
+
+	// Проверяем, что первый заказ был обработан
+	mockAccrualService.AssertCalled(t, "GetOrderInfo", ctx, "12345678903")
+	mockStorage.AssertCalled(t, "UpdateOrderStatus", ctx, "12345678903", "PROCESSED", (*float64)(nil))
+
+	// Проверяем, что второй заказ вызвал rate limit
+	mockAccrualService.AssertCalled(t, "GetOrderInfo", ctx, "12345678904")
+}
+
+func TestOrderProcessor_ProcessOrdersWithWorkers_Success(t *testing.T) {
+	mockStorage := &MockStorage{}
+	mockAccrualService := &MockAccrualService{}
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+
+	ctx := context.Background()
+	orders := []models.Order{
+		{ID: 1, UserID: 1, Number: "12345678903", Status: "NEW"},
+		{ID: 2, UserID: 2, Number: "12345678904", Status: "PROCESSING"},
+	}
+
+	// Настраиваем моки для успешной обработки всех заказов
+	mockAccrualService.On("GetOrderInfo", ctx, "12345678903").Return(&models.AccrualResponse{
+		Order:   "12345678903",
+		Status:  "PROCESSED",
+		Accrual: nil,
+	}, nil)
+	mockStorage.On("UpdateOrderStatus", ctx, "12345678903", "PROCESSED", (*float64)(nil)).Return(nil)
+
+	mockAccrualService.On("GetOrderInfo", ctx, "12345678904").Return(&models.AccrualResponse{
+		Order:   "12345678904",
+		Status:  "PROCESSED",
+		Accrual: nil,
+	}, nil)
+	mockStorage.On("UpdateOrderStatus", ctx, "12345678904", "PROCESSED", (*float64)(nil)).Return(nil)
+
+	// Вызываем ProcessOrdersWithWorkers напрямую
+	processor.ProcessOrdersWithWorkers(ctx, orders)
+
+	// Проверяем, что все заказы были обработаны
 	mockAccrualService.AssertExpectations(t)
 	mockStorage.AssertExpectations(t)
 }

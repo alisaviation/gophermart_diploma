@@ -3,17 +3,17 @@ package server
 import (
 	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"regexp"
 	"strconv"
-	"strings"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/middleware"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/storage"
+	"go.uber.org/zap"
 )
 
 var validate *validator.Validate
@@ -86,7 +86,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка, на существования пользователя
 	existingUser, err := h.storage.GetUserByLogin(r.Context(), req.Login)
 	if err != nil {
-		log.Printf("Failed to get user by login: %v", err)
+		logger.Logger.Error("Failed to get user by login", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -98,7 +98,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Хешируем пароль
 	passwordHash, err := h.authService.HashPassword(req.Password)
 	if err != nil {
-		log.Printf("Failed to hash password: %v", err)
+		logger.Logger.Error("Failed to hash password", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -106,7 +106,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Создаем пользователя
 	user, err := h.storage.CreateUser(r.Context(), req.Login, passwordHash)
 	if err != nil {
-		log.Printf("Failed to create user: %v", err)
+		logger.Logger.Error("Failed to create user", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -114,7 +114,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Генерируем JWT токен
 	token, err := h.authService.GenerateJWT(user.ID, user.Login)
 	if err != nil {
-		log.Printf("Failed to generate JWT: %v", err)
+		logger.Logger.Error("Failed to generate JWT", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -141,7 +141,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Получаем пользователя
 	user, err := h.storage.GetUserByLogin(r.Context(), req.Login)
 	if err != nil {
-		log.Printf("Failed to get user by login: %v", err)
+		logger.Logger.Error("Failed to get user by login", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -159,7 +159,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Генерируем JWT токен
 	token, err := h.authService.GenerateJWT(user.ID, user.Login)
 	if err != nil {
-		log.Printf("Failed to generate JWT: %v", err)
+		logger.Logger.Error("Failed to generate JWT", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -196,27 +196,27 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверяем, существует ли заказ
 	existingOrder, err := h.storage.GetOrderByNumber(r.Context(), orderNumber)
 	if err != nil {
-		log.Printf("Failed to get order by number: %v", err)
+		logger.Logger.Error("Failed to get order by number", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	if existingOrder != nil {
+		// Заказ уже существует
 		if existingOrder.UserID == userID {
-			// Заказ уже загружен этим пользователем
+			// Заказ принадлежит текущему пользователю
 			w.WriteHeader(http.StatusOK)
-			return
 		} else {
-			// Заказ уже загружен другим пользователем
-			http.Error(w, "Order already uploaded by another user", http.StatusConflict)
-			return
+			// Заказ принадлежит другому пользователю
+			http.Error(w, "Order already exists", http.StatusConflict)
 		}
+		return
 	}
 
 	// Создаем новый заказ
 	_, err = h.storage.CreateOrder(r.Context(), userID, orderNumber)
 	if err != nil {
-		log.Printf("Failed to create order: %v", err)
+		logger.Logger.Error("Failed to create order", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -224,7 +224,7 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusAccepted)
 }
 
-// GetOrdersHandler возвращает список заказов пользователя
+// GetOrdersHandler обрабатывает получение списка заказов
 func (h *Handlers) GetOrdersHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok {
@@ -234,32 +234,22 @@ func (h *Handlers) GetOrdersHandler(w http.ResponseWriter, r *http.Request) {
 
 	orders, err := h.storage.GetOrdersByUserID(r.Context(), userID)
 	if err != nil {
-		log.Printf("Failed to get orders by user ID: %v", err)
+		logger.Logger.Error("Failed to get orders by user ID", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	if len(orders) == 0 {
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
 		return
 	}
 
-	// Преобразуем в формат ответа
-	responses := make([]models.OrderResponse, len(orders))
-	for i, order := range orders {
-		responses[i] = models.OrderResponse{
-			Number:     order.Number,
-			Status:     order.Status,
-			Accrual:    order.Accrual,
-			UploadedAt: order.UploadedAt,
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(responses)
+	json.NewEncoder(w).Encode(orders)
 }
 
-// GetBalanceHandler возвращает баланс пользователя
+// GetBalanceHandler обрабатывает получение баланса
 func (h *Handlers) GetBalanceHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok {
@@ -269,18 +259,13 @@ func (h *Handlers) GetBalanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	balance, err := h.storage.GetBalance(r.Context(), userID)
 	if err != nil {
-		log.Printf("Failed to get balance: %v", err)
+		logger.Logger.Error("Failed to get balance", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
-	response := models.BalanceResponse{
-		Current:   balance.Current,
-		Withdrawn: balance.Withdrawn,
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(balance)
 }
 
 // WithdrawHandler обрабатывает списание средств
@@ -292,26 +277,27 @@ func (h *Handlers) WithdrawHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req models.WithdrawRequest
-	var err error
-	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	// Валидация запроса
-	if err = validate.Struct(req); err != nil {
-		http.Error(w, "Invalid request format", http.StatusBadRequest)
+	// Валидация
+	if err := validate.Struct(req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	// Выполняем списание в транзакции
-	_, err = h.storage.ProcessWithdrawal(r.Context(), userID, req.Order, req.Sum)
+	// Проверяем номер заказа
+	if !validateOrderNumber(req.Order) {
+		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Обрабатываем списание
+	_, err := h.storage.ProcessWithdrawal(r.Context(), userID, req.Order, req.Sum)
 	if err != nil {
-		if strings.Contains(err.Error(), "insufficient funds") {
-			http.Error(w, "Insufficient funds", http.StatusPaymentRequired)
-			return
-		}
-		log.Printf("Failed to process withdrawal: %v", err)
+		logger.Logger.Error("Failed to process withdrawal", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -319,7 +305,7 @@ func (h *Handlers) WithdrawHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// GetWithdrawalsHandler возвращает список списаний пользователя
+// GetWithdrawalsHandler обрабатывает получение списка списаний
 func (h *Handlers) GetWithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, ok := middleware.GetUserIDFromContext(r.Context())
 	if !ok {
@@ -329,26 +315,17 @@ func (h *Handlers) GetWithdrawalsHandler(w http.ResponseWriter, r *http.Request)
 
 	withdrawals, err := h.storage.GetWithdrawalsByUserID(r.Context(), userID)
 	if err != nil {
-		log.Printf("Failed to get withdrawals by user ID: %v", err)
+		logger.Logger.Error("Failed to get withdrawals by user ID", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
 
 	if len(withdrawals) == 0 {
-		w.WriteHeader(http.StatusNoContent)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("[]"))
 		return
 	}
 
-	// Преобразуем в формат ответа
-	responses := make([]models.WithdrawalResponse, len(withdrawals))
-	for i, withdrawal := range withdrawals {
-		responses[i] = models.WithdrawalResponse{
-			Order:       withdrawal.Order,
-			Sum:         withdrawal.Sum,
-			ProcessedAt: withdrawal.ProcessedAt,
-		}
-	}
-
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(responses)
+	json.NewEncoder(w).Encode(withdrawals)
 }

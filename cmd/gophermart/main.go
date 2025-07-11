@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,29 +10,37 @@ import (
 	"time"
 
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/config"
+	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/server"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/storage"
+	"go.uber.org/zap"
 )
 
 func main() {
+	if err := logger.InitLogger(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer logger.Sync()
+
 	// Загружаем конфигурацию
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		logger.Logger.Fatal("Failed to load config", zap.Error(err))
 	}
 
 	// Подключаемся к базе данных
 	dbStorage, err := storage.NewDatabaseStorage(cfg.DatabaseURI)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		logger.Logger.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer dbStorage.Close()
 
 	// Генерируем секретный ключ для JWT
 	jwtSecret, err := services.GenerateSecret()
 	if err != nil {
-		log.Fatalf("Failed to generate JWT secret: %v", err)
+		logger.Logger.Fatal("Failed to generate JWT secret", zap.Error(err))
 	}
 
 	// Создаем сервисы
@@ -44,11 +52,11 @@ func main() {
 
 	orderProcessInterval, err := cfg.GetOrderProcessInterval()
 	if err != nil {
-		log.Fatalf("Failed to parse order process interval: %v", err)
+		logger.Logger.Fatal("Failed to parse order process interval", zap.Error(err))
 	}
 
 	// Создаем процессор заказов
-	orderProcessor := server.NewOrderProcessor(dbStorage, accrualService, orderProcessInterval)
+	orderProcessor := server.NewOrderProcessor(dbStorage, accrualService, orderProcessInterval, cfg.WorkerCount)
 	orderProcessor.Start()
 	defer orderProcessor.Stop()
 
@@ -67,7 +75,7 @@ func main() {
 
 	// Запускаем сервер в горутине
 	go func() {
-		log.Printf("Starting server on %s", cfg.RunAddress)
+		logger.Logger.Info("Starting server", zap.String("address", cfg.RunAddress))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErrors <- err
 		}
@@ -76,10 +84,10 @@ func main() {
 	// Ждем либо сигнала завершения, либо ошибки сервера
 	select {
 	case <-ctx.Done():
-		log.Println("Shutting down server...")
+		logger.Logger.Info("Shutting down server...")
 	case err := <-serverErrors:
-		log.Printf("Server error: %v", err)
-		log.Println("Shutting down server...")
+		logger.Logger.Error("Server error", zap.Error(err))
+		logger.Logger.Info("Shutting down server...")
 	}
 
 	// Graceful shutdown
@@ -87,8 +95,8 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		log.Printf("Server shutdown error: %v", err)
+		logger.Logger.Error("Server shutdown error", zap.Error(err))
 	}
 
-	log.Println("Server stopped")
+	logger.Logger.Info("Server stopped")
 }
