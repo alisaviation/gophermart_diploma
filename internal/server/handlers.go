@@ -19,6 +19,9 @@ var validate *validator.Validate
 
 func init() {
 	validate = validator.New()
+	_ = validate.RegisterValidation("order_number", func(fl validator.FieldLevel) bool {
+		return validateOrderNumber(fl.Field().String())
+	})
 }
 
 // validateOrderNumber проверяет номер заказа с помощью алгоритма Луна
@@ -187,7 +190,7 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderNumber := string(body)
 
 	// Валидация номера заказа
-	if !validateOrderNumber(orderNumber) {
+	if err := validate.Var(orderNumber, "order_number"); err != nil {
 		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
 		return
 	}
@@ -288,7 +291,7 @@ func (h *Handlers) WithdrawHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверяем номер заказа
-	if !validateOrderNumber(req.Order) {
+	if err := validate.Var(req.Order, "order_number"); err != nil {
 		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
 		return
 	}

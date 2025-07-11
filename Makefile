@@ -17,8 +17,12 @@ run: build
 
 # Тестирование
 test: generate-mocks
+	@echo "Starting PostgreSQL for tests..."
+	@docker compose up -d postgres
+	@sleep 3
 	@echo "Running tests..."
 	go test -v ./...
+	@echo "Tests completed"
 
 # Очистка
 clean:
@@ -38,15 +42,12 @@ generate-mocks:
 # Миграции базы данных
 migrate:
 	@echo "Running database migrations..."
-	@if ! command -v goose >/dev/null 2>&1; then \
-		go install github.com/pressly/goose/v3/cmd/goose@latest; \
-	fi
-	@$$HOME/go/bin/goose -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URI)" up
+	@go run github.com/pressly/goose/v3/cmd/goose@latest -dir $(MIGRATIONS_DIR) postgres "$(DATABASE_URI)" up
 
 # Создание миграции
 migrate-create:
 	@echo "Creating new migration..."
-	goose -dir $(MIGRATIONS_DIR) create $(name) sql
+	@go run github.com/pressly/goose/v3/cmd/goose@latest -dir $(MIGRATIONS_DIR) create $(name) sql
 
 # Установка зависимостей
 deps:
@@ -101,7 +102,7 @@ autotest: build
 	@docker compose up -d postgres
 	@sleep 5
 	@echo "Running migrations..."
-	@$$HOME/go/bin/goose -dir migrations postgres "postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable" up
+	@go run github.com/pressly/goose/v3/cmd/goose@latest -dir migrations postgres "postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable" up
 	@echo "Starting accrual server..."
 	@echo $$(.tools/random unused-port) > .accrual_port
 	@ACCRUAL_PORT=$$(cat .accrual_port) && echo "Accrual port: $$ACCRUAL_PORT" && RUN_ADDRESS=":$$ACCRUAL_PORT" DATABASE_URI="postgresql://postgres:postgres@localhost:5432/praktikum?sslmode=disable" ./cmd/accrual/accrual_darwin_arm64 &
@@ -125,6 +126,15 @@ autotest: build
 	@kill $$GOPHERMART_PID 2>/dev/null || true
 	@kill $$ACCRUAL_PID 2>/dev/null || true
 	@rm -f .accrual_port
+
+# Интеграционные тесты с базой данных
+test-integration: generate-mocks
+	@echo "Starting PostgreSQL for integration tests..."
+	@docker compose up -d postgres
+	@sleep 3
+	@echo "Running integration tests..."
+	go test -v ./internal/storage/...
+	@echo "Integration tests completed"
 
 # Полная проверка кода
 check-all: fmt lint test statictest

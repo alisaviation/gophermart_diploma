@@ -1,8 +1,5 @@
 //go:build tools
-// +build tools
 
 package main
 
-import (
-	_ "github.com/pressly/goose/v3/cmd/goose"
-)
+//go:generate go run github.com/pressly/goose/v3/cmd/goose@latest

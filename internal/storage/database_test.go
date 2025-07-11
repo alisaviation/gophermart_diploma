@@ -203,8 +203,8 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, user)
 
-		// Создаем заказ для тестирования
-		order, err := storage.CreateOrder(ctx, user.ID, "12345678903")
+		// Создаем заказ для тестирования с уникальным номером
+		order, err := storage.CreateOrder(ctx, user.ID, "12345678904")
 		require.NoError(t, err)
 
 		// Устанавливаем начальный баланс
@@ -234,8 +234,8 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, user)
 
-		// Создаем еще один заказ
-		order, err := storage.CreateOrder(ctx, user.ID, "98765432109")
+		// Создаем еще один заказ с уникальным номером
+		order, err := storage.CreateOrder(ctx, user.ID, "98765432108")
 		require.NoError(t, err)
 
 		// Обновление без начисления (accrual = nil)

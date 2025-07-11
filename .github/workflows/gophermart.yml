@@ -58,7 +58,7 @@ jobs:
           echo "HOME: $HOME"
           echo "Current PATH: $PATH"
           
-          # Устанавливаем goose
+          # Устанавливаем goose (для совместимости)
           go install github.com/pressly/goose/v3/cmd/goose@latest
           
           # Проверяем где установился
@@ -82,9 +82,9 @@ jobs:
           echo "Testing database connection..."
           pg_isready -h postgres -p 5432 -U postgres || echo "Database not ready"
           
-          # Запускаем миграции
+          # Запускаем миграции используя новый механизм tools
           echo "Running migrations..."
-          goose -dir migrations postgres "postgresql://postgres:postgres@postgres/praktikum?sslmode=disable" up
+          go run github.com/pressly/goose/v3/cmd/goose@latest -dir migrations postgres "postgresql://postgres:postgres@postgres/praktikum?sslmode=disable" up
 
       - name: Test
         run: |

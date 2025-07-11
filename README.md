@@ -100,6 +100,9 @@ make generate-mocks
 # Тестирование
 make test
 
+# Интеграционные тесты
+make test-integration
+
 # Линтинг
 make lint
 
