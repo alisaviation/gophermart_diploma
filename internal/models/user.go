@@ -13,14 +13,14 @@ type User struct {
 
 // UserRegisterRequest запрос на регистрацию пользователя
 type UserRegisterRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login    string `json:"login" validate:"required,min=1,max=255"`
+	Password string `json:"password" validate:"required,min=1,max=255"`
 }
 
 // UserLoginRequest запрос на аутентификацию пользователя
 type UserLoginRequest struct {
-	Login    string `json:"login"`
-	Password string `json:"password"`
+	Login    string `json:"login" validate:"required,min=1,max=255"`
+	Password string `json:"password" validate:"required,min=1,max=255"`
 }
 
 // Order представляет заказ пользователя
@@ -72,8 +72,8 @@ type WithdrawalResponse struct {
 
 // WithdrawRequest запрос на списание средств
 type WithdrawRequest struct {
-	Order string  `json:"order"`
-	Sum   float64 `json:"sum"`
+	Order string  `json:"order" validate:"required,order_number"`
+	Sum   float64 `json:"sum" validate:"required,gt=0"`
 }
 
 // AccrualResponse ответ от системы начисления баллов

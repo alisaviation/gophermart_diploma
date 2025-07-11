@@ -4,13 +4,52 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/middleware"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/storage"
-	"github.com/vglushak/go-musthave-diploma-tpl/internal/utils"
 )
+
+var validate *validator.Validate
+
+func init() {
+	validate = validator.New()
+}
+
+// validateOrderNumber проверяет номер заказа с помощью алгоритма Луна
+func validateOrderNumber(number string) bool {
+	// Проверяем, что номер состоит только из цифр
+	if !regexp.MustCompile(`^\d+$`).MatchString(number) {
+		return false
+	}
+
+	// Алгоритм Луна
+	sum := 0
+	alternate := false
+
+	for i := len(number) - 1; i >= 0; i-- {
+		digit, err := strconv.Atoi(string(number[i]))
+		if err != nil {
+			return false
+		}
+
+		if alternate {
+			digit *= 2
+			if digit > 9 {
+				digit = (digit % 10) + 1
+			}
+		}
+
+		sum += digit
+		alternate = !alternate
+	}
+
+	return sum%10 == 0
+}
 
 // Handlers содержит все HTTP обработчики
 type Handlers struct {
@@ -37,7 +76,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if !utils.ValidateLogin(req.Login) || !utils.ValidatePassword(req.Password) {
+	if err := validate.Struct(req); err != nil {
 		http.Error(w, "Invalid login or password", http.StatusBadRequest)
 		return
 	}
@@ -88,7 +127,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if !utils.ValidateLogin(req.Login) || !utils.ValidatePassword(req.Password) {
+	if err := validate.Struct(req); err != nil {
 		http.Error(w, "Invalid login or password", http.StatusBadRequest)
 		return
 	}
@@ -141,7 +180,7 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderNumber := string(body)
 
 	// Валидация номера заказа
-	if !utils.ValidateOrderNumber(orderNumber) {
+	if !validateOrderNumber(orderNumber) {
 		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
 		return
 	}
@@ -246,9 +285,9 @@ func (h *Handlers) WithdrawHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Валидация номера заказа
-	if !utils.ValidateOrderNumber(req.Order) {
-		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
+	// Валидация запроса
+	if err := validate.Struct(req); err != nil {
+		http.Error(w, "Invalid request format", http.StatusBadRequest)
 		return
 	}
 
