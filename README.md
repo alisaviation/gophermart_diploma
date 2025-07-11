@@ -94,6 +94,9 @@ make run
 # Сборка
 make build
 
+# Генерация моков
+make generate-mocks
+
 # Тестирование
 make test
 
@@ -109,6 +112,8 @@ make check-all
 # Запуск
 make run
 ```
+
+## Разработка
 
 ## API тестирование
 

@@ -1,6 +1,5 @@
-.PHONY: build run test clean migrate
+.PHONY: build run test clean migrate generate-mocks
 
-# Переменные
 BINARY_NAME=gophermart
 BUILD_DIR=bin
 MIGRATIONS_DIR=migrations
@@ -17,7 +16,7 @@ run: build
 	./$(BUILD_DIR)/$(BINARY_NAME)
 
 # Тестирование
-test:
+test: generate-mocks
 	@echo "Running tests..."
 	go test -v ./...
 
@@ -25,6 +24,16 @@ test:
 clean:
 	@echo "Cleaning..."
 	rm -rf $(BUILD_DIR)
+
+# Генерация моков
+generate-mocks:
+	@echo "Generating mocks..."
+	@if ! command -v mockery >/dev/null 2>&1; then \
+		go install github.com/vektra/mockery/v2@latest; \
+	fi
+	@export PATH=$$PATH:$$(go env GOPATH)/bin && \
+	mockery --dir internal/storage --name Storage --output internal/storage/mocks --outpkg mocks --with-expecter && \
+	mockery --dir internal/services --name AccrualServiceIface --output internal/services/mocks --outpkg mocks --with-expecter
 
 # Миграции базы данных
 migrate:

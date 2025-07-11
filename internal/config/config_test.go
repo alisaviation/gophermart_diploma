@@ -87,7 +87,7 @@ func TestLoadWithEnvironment(t *testing.T) {
 		os.Setenv("ACCRUAL_SYSTEM_ADDRESS", "http://accrual:8080")
 		os.Setenv("ORDER_PROCESS_INTERVAL", "10s")
 
-		cfg, err := loadFromValues("localhost:8080", "postgres://test:test@localhost/test", "", "5s")
+		cfg, err := loadFromValues("localhost:8080", "postgres://test:test@localhost/test", "", "5s", 5)
 		require.NoError(t, err)
 		assert.Equal(t, ":9090", cfg.RunAddress)
 		assert.Equal(t, "postgres://test:test@localhost/test", cfg.DatabaseURI)
@@ -101,7 +101,7 @@ func TestLoadWithEnvironment(t *testing.T) {
 		os.Unsetenv("ACCRUAL_SYSTEM_ADDRESS")
 		os.Unsetenv("ORDER_PROCESS_INTERVAL")
 
-		cfg, err := loadFromValues("localhost:8080", "", "", "5s")
+		cfg, err := loadFromValues("localhost:8080", "", "", "5s", 5)
 		assert.NoError(t, err)
 		assert.NotNil(t, cfg)
 		assert.Equal(t, "", cfg.DatabaseURI)
@@ -113,7 +113,7 @@ func TestLoadWithEnvironment(t *testing.T) {
 		os.Unsetenv("ACCRUAL_SYSTEM_ADDRESS")
 		os.Unsetenv("ORDER_PROCESS_INTERVAL")
 
-		cfg, err := loadFromValues("localhost:8080", "postgres://test:test@localhost/test", "", "5s")
+		cfg, err := loadFromValues("localhost:8080", "postgres://test:test@localhost/test", "", "5s", 5)
 		require.NoError(t, err)
 		assert.Equal(t, "localhost:8080", cfg.RunAddress)
 		assert.Equal(t, "postgres://test:test@localhost/test", cfg.DatabaseURI)
