@@ -254,3 +254,61 @@ func (s *DatabaseStorage) GetOrdersByStatus(ctx context.Context, statuses []stri
 
 	return orders, nil
 }
+
+// ProcessWithdrawal выполняет списание средств в транзакции
+func (s *DatabaseStorage) ProcessWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error) {
+	// Начинаем транзакцию
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// Получаем баланс с блокировкой строки
+	var balance models.Balance
+	balanceQuery := `SELECT user_id, current, withdrawn FROM balances WHERE user_id = $1 FOR UPDATE`
+
+	err = tx.QueryRow(ctx, balanceQuery, userID).Scan(&balance.UserID, &balance.Current, &balance.Withdrawn)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Создаем новый баланс если не существует
+			balance = models.Balance{UserID: userID, Current: 0, Withdrawn: 0}
+		} else {
+			return nil, fmt.Errorf("failed to get balance for update: %w", err)
+		}
+	}
+
+	// Проверяем достаточность средств
+	if balance.Current < sum {
+		return nil, fmt.Errorf("insufficient funds: current balance %.2f, requested %.2f", balance.Current, sum)
+	}
+
+	// Создаем списание
+	var withdrawal models.Withdrawal
+	withdrawalQuery := `INSERT INTO withdrawals (user_id, order_number, sum, processed_at) VALUES ($1, $2, $3, $4) RETURNING id, user_id, order_number, sum, processed_at`
+
+	now := time.Now()
+	err = tx.QueryRow(ctx, withdrawalQuery, userID, order, sum, now).Scan(
+		&withdrawal.ID, &withdrawal.UserID, &withdrawal.Order, &withdrawal.Sum, &withdrawal.ProcessedAt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create withdrawal: %w", err)
+	}
+
+	// Обновляем баланс
+	newCurrent := balance.Current - sum
+	newWithdrawn := balance.Withdrawn + sum
+	updateBalanceQuery := `INSERT INTO balances (user_id, current, withdrawn) VALUES ($1, $2, $3) 
+						  ON CONFLICT (user_id) DO UPDATE SET current = $2, withdrawn = $3`
+
+	_, err = tx.Exec(ctx, updateBalanceQuery, userID, newCurrent, newWithdrawn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update balance: %w", err)
+	}
+
+	// Подтверждаем транзакцию
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return &withdrawal, nil
+}

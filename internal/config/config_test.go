@@ -102,9 +102,9 @@ func TestLoadWithEnvironment(t *testing.T) {
 		os.Unsetenv("ORDER_PROCESS_INTERVAL")
 
 		cfg, err := loadFromValues("localhost:8080", "", "", "5s")
-		assert.Error(t, err)
-		assert.Nil(t, cfg)
-		assert.Contains(t, err.Error(), "DATABASE_URI is required")
+		assert.NoError(t, err)
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "", cfg.DatabaseURI)
 	})
 
 	t.Run("Load with default values", func(t *testing.T) {

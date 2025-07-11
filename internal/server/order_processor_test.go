@@ -85,6 +85,14 @@ func (m *MockStorage) GetWithdrawalsByUserID(ctx context.Context, userID int64) 
 	return args.Get(0).([]models.Withdrawal), args.Error(1)
 }
 
+func (m *MockStorage) ProcessWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error) {
+	args := m.Called(ctx, userID, order, sum)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Withdrawal), args.Error(1)
+}
+
 func (m *MockStorage) Ping(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)

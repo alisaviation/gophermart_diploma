@@ -27,6 +27,9 @@ type Storage interface {
 	// Withdrawal methods
 	CreateWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error)
 	GetWithdrawalsByUserID(ctx context.Context, userID int64) ([]models.Withdrawal, error)
+	
+	// Transactional withdrawal - проверяет баланс и создает списание в одной транзакции
+	ProcessWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error)
 
 	// Database methods
 	Ping(ctx context.Context) error
