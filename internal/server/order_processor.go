@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
@@ -19,7 +20,7 @@ type OrderProcessor struct {
 	interval       time.Duration
 	stopChan       chan struct{}
 	workerCount    int
-	rateLimitChan  chan time.Duration
+	nextSendTime   atomic.Int64 // время следующей отправки в наносекундах
 	logger         *zap.Logger
 }
 
@@ -31,7 +32,6 @@ func NewOrderProcessor(storage Storage, accrualService services.AccrualServiceIf
 		interval:       interval,
 		stopChan:       make(chan struct{}),
 		workerCount:    workerCount,
-		rateLimitChan:  make(chan time.Duration, 1),
 		logger:         logger,
 	}
 }
@@ -54,10 +54,27 @@ func (p *OrderProcessor) processLoop() {
 	for {
 		select {
 		case <-ticker.C:
+			// Проверяем, не нужно ли подождать из-за rate limit
+			nextSend := p.nextSendTime.Load()
+			if nextSend > 0 {
+				now := time.Now().UnixNano()
+				if now < nextSend {
+					waitTime := time.Duration(nextSend - now)
+					p.logger.Info("Rate limit detected, waiting for cooldown", zap.Duration("cooldown", waitTime))
+
+					timer := time.NewTimer(waitTime)
+					select {
+					case <-timer.C:
+						// Время ожидания истекло
+					case <-p.stopChan:
+						timer.Stop()
+						return
+					}
+				}
+				// Сбрасываем время следующей отправки
+				p.nextSendTime.Store(0)
+			}
 			p.ProcessOrders()
-		case cooldown := <-p.rateLimitChan:
-			p.logger.Info("Rate limit detected, waiting for cooldown", zap.Duration("cooldown", cooldown))
-			time.Sleep(cooldown)
 		case <-p.stopChan:
 			return
 		}
@@ -104,16 +121,13 @@ func (p *OrderProcessor) ProcessOrdersWithWorkers(ctx context.Context, orders []
 	// Канал для передачи заказов воркерам
 	orderChan := make(chan models.Order, len(orders))
 
-	// Канал для сигнализации о rate limit
-	rateLimitChan := make(chan struct{}, 1)
-
 	// WaitGroup для ожидания завершения всех воркеров
 	var wg sync.WaitGroup
 
 	// Запускаем воркеры
 	for i := 0; i < p.workerCount; i++ {
 		wg.Add(1)
-		go p.worker(ctx, orderChan, rateLimitChan, &wg)
+		go p.worker(ctx, orderChan, &wg)
 	}
 
 	// Отправляем заказы в канал
@@ -122,10 +136,6 @@ func (p *OrderProcessor) ProcessOrdersWithWorkers(ctx context.Context, orders []
 		for _, order := range orders {
 			select {
 			case orderChan <- order:
-			case <-rateLimitChan:
-				// Получили сигнал о rate limit, прекращаем отправку
-				p.logger.Info("Rate limit detected, stopping order processing")
-				return
 			case <-ctx.Done():
 				return
 			}
@@ -136,7 +146,7 @@ func (p *OrderProcessor) ProcessOrdersWithWorkers(ctx context.Context, orders []
 }
 
 // worker обрабатывает заказы из канала
-func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Order, rateLimitChan chan<- struct{}, wg *sync.WaitGroup) {
+func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Order, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for {
@@ -146,21 +156,25 @@ func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Ord
 				return
 			}
 
+			// Проверяем, не нужно ли подождать из-за rate limit
+			nextSend := p.nextSendTime.Load()
+			if nextSend > 0 {
+				now := time.Now().UnixNano()
+				if now < nextSend {
+					// Воркер завершает работу, так как есть rate limit
+					return
+				}
+			}
+
 			if err := p.ProcessOrder(ctx, order.Number); err != nil {
 				var rateLimitErr *services.RateLimitError
 				if errors.As(err, &rateLimitErr) {
 					p.logger.Info("Rate limit exceeded, worker stopping",
 						zap.Duration("retryAfter", rateLimitErr.RetryAfter))
-					// Отправляем cooldown в основной цикл
-					select {
-					case p.rateLimitChan <- rateLimitErr.RetryAfter:
-					default:
-					}
-					// Отправляем сигнал о rate limit неблокирующе
-					select {
-					case rateLimitChan <- struct{}{}:
-					default:
-					}
+
+					// Устанавливаем время следующей отправки
+					nextSendTime := time.Now().Add(rateLimitErr.RetryAfter).UnixNano()
+					p.nextSendTime.Store(nextSendTime)
 					return
 				}
 				p.logger.Error("Failed to process order",

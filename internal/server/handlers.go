@@ -14,13 +14,12 @@ import (
 	"go.uber.org/zap"
 )
 
-var validate *validator.Validate
-
-func init() {
-	validate = validator.New()
+func NewValidator() *validator.Validate {
+	validate := validator.New()
 	_ = validate.RegisterValidation("order_number", func(fl validator.FieldLevel) bool {
 		return validateOrderNumber(fl.Field().String())
 	})
+	return validate
 }
 
 // validateOrderNumber проверяет номер заказа с помощью алгоритма Луна
@@ -60,6 +59,7 @@ type Handlers struct {
 	authService    *services.AuthService
 	accrualService *services.AccrualService
 	logger         *zap.Logger
+	validate       *validator.Validate
 }
 
 // NewHandlers создает новые обработчики
@@ -69,6 +69,7 @@ func NewHandlers(storage Storage, authService *services.AuthService, accrualServ
 		authService:    authService,
 		accrualService: accrualService,
 		logger:         logger,
+		validate:       NewValidator(),
 	}
 }
 
@@ -81,7 +82,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if err := validate.Struct(req); err != nil {
+	if err := h.validate.Struct(req); err != nil {
 		http.Error(w, "Invalid login or password", http.StatusBadRequest)
 		return
 	}
@@ -136,7 +137,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if err := validate.Struct(req); err != nil {
+	if err := h.validate.Struct(req); err != nil {
 		http.Error(w, "Invalid login or password", http.StatusBadRequest)
 		return
 	}
@@ -191,7 +192,7 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	orderNumber := string(body)
 
 	// Валидация номера заказа
-	if err := validate.Var(orderNumber, "order_number"); err != nil {
+	if err := h.validate.Var(orderNumber, "order_number"); err != nil {
 		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
 		return
 	}
@@ -286,13 +287,13 @@ func (h *Handlers) WithdrawHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Валидация
-	if err := validate.Struct(req); err != nil {
+	if err := h.validate.Struct(req); err != nil {
 		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
 	// Проверяем номер заказа
-	if err := validate.Var(req.Order, "order_number"); err != nil {
+	if err := h.validate.Var(req.Order, "order_number"); err != nil {
 		http.Error(w, "Invalid order number format", http.StatusUnprocessableEntity)
 		return
 	}
