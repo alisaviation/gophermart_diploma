@@ -18,29 +18,30 @@ import (
 )
 
 func main() {
-	if err := logger.InitLogger(); err != nil {
+	log, err := logger.NewLogger()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer log.Sync()
 
 	// Загружаем конфигурацию
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Logger.Fatal("Failed to load config", zap.Error(err))
+		log.Fatal("Failed to load config", zap.Error(err))
 	}
 
 	// Подключаемся к базе данных
 	dbStorage, err := storage.NewDatabaseStorage(context.Background(), cfg.DatabaseURI)
 	if err != nil {
-		logger.Logger.Fatal("Failed to connect to database", zap.Error(err))
+		log.Fatal("Failed to connect to database", zap.Error(err))
 	}
 	defer dbStorage.Close()
 
 	// Генерируем секретный ключ для JWT
 	jwtSecret, err := services.GenerateSecret()
 	if err != nil {
-		logger.Logger.Fatal("Failed to generate JWT secret", zap.Error(err))
+		log.Fatal("Failed to generate JWT secret", zap.Error(err))
 	}
 
 	// Создаем сервисы
@@ -48,15 +49,15 @@ func main() {
 	accrualService := services.NewAccrualService(cfg.AccrualSystemAddress)
 
 	// Создаем роутер
-	router := server.NewRouter(dbStorage, authService, accrualService)
+	router := server.NewRouter(dbStorage, authService, accrualService, log)
 
 	orderProcessInterval, err := cfg.GetOrderProcessInterval()
 	if err != nil {
-		logger.Logger.Fatal("Failed to parse order process interval", zap.Error(err))
+		log.Fatal("Failed to parse order process interval", zap.Error(err))
 	}
 
 	// Создаем процессор заказов
-	orderProcessor := server.NewOrderProcessor(dbStorage, accrualService, orderProcessInterval, cfg.WorkerCount)
+	orderProcessor := server.NewOrderProcessor(dbStorage, accrualService, orderProcessInterval, cfg.WorkerCount, log)
 	orderProcessor.Start()
 	defer orderProcessor.Stop()
 
@@ -75,7 +76,7 @@ func main() {
 
 	// Запускаем сервер в горутине
 	go func() {
-		logger.Logger.Info("Starting server", zap.String("address", cfg.RunAddress))
+		log.Info("Starting server", zap.String("address", cfg.RunAddress))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			serverErrors <- err
 		}
@@ -84,10 +85,10 @@ func main() {
 	// Ждем либо сигнала завершения, либо ошибки сервера
 	select {
 	case <-ctx.Done():
-		logger.Logger.Info("Shutting down server...")
+		log.Info("Shutting down server...")
 	case err := <-serverErrors:
-		logger.Logger.Error("Server error", zap.Error(err))
-		logger.Logger.Info("Shutting down server...")
+		log.Error("Server error", zap.Error(err))
+		log.Info("Shutting down server...")
 	}
 
 	// Graceful shutdown
@@ -95,8 +96,8 @@ func main() {
 	defer cancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		logger.Logger.Error("Server shutdown error", zap.Error(err))
+		log.Error("Server shutdown error", zap.Error(err))
 	}
 
-	logger.Logger.Info("Server stopped")
+	log.Info("Server stopped")
 }

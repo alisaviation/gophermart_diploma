@@ -198,7 +198,7 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 		assert.Equal(t, "testorder123", withdrawals[1].Order)
 	})
 
-	t.Run("UpdateOrderStatusAndBalanceTx", func(t *testing.T) {
+	t.Run("UpdateOrderStatusAndBalance", func(t *testing.T) {
 		user, err := storage.GetUserByLogin(ctx, "testuser")
 		require.NoError(t, err)
 		require.NotNil(t, user)
@@ -213,7 +213,7 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 
 		// Атомарное обновление статуса заказа и баланса
 		accrual := 50.0
-		err = storage.UpdateOrderStatusAndBalanceTx(ctx, order.Number, "PROCESSED", &accrual, user.ID, 150.0, 0.0)
+		err = storage.UpdateOrderStatusAndBalance(ctx, order.Number, "PROCESSED", &accrual, user.ID, 150.0, 0.0)
 		require.NoError(t, err)
 
 		// Статус заказа обновился
@@ -229,7 +229,7 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 		assert.Equal(t, 0.0, balance.Withdrawn)
 	})
 
-	t.Run("UpdateOrderStatusAndBalanceTx_WithoutAccrual", func(t *testing.T) {
+	t.Run("UpdateOrderStatusAndBalance_WithoutAccrual", func(t *testing.T) {
 		user, err := storage.GetUserByLogin(ctx, "testuser")
 		require.NoError(t, err)
 		require.NotNil(t, user)
@@ -239,7 +239,7 @@ func TestDatabaseStorage_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Обновление без начисления (accrual = nil)
-		err = storage.UpdateOrderStatusAndBalanceTx(ctx, order.Number, "PROCESSED", nil, user.ID, 150.0, 0.0)
+		err = storage.UpdateOrderStatusAndBalance(ctx, order.Number, "PROCESSED", nil, user.ID, 150.0, 0.0)
 		require.NoError(t, err)
 
 		// Статус заказа обновился

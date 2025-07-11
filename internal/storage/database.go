@@ -341,8 +341,8 @@ func (s *DatabaseStorage) ProcessWithdrawal(ctx context.Context, userID int64, o
 	return &withdrawal, nil
 }
 
-// UpdateOrderStatusAndBalanceTx атомарно обновляет статус заказа и баланс пользователя
-func (s *DatabaseStorage) UpdateOrderStatusAndBalanceTx(ctx context.Context, orderNumber string, status string, accrual *float64, userID int64, newCurrent, withdrawn float64) error {
+// UpdateOrderStatusAndBalance атомарно обновляет статус заказа и баланс пользователя
+func (s *DatabaseStorage) UpdateOrderStatusAndBalance(ctx context.Context, orderNumber string, status string, accrual *float64, userID int64, newCurrent, withdrawn float64) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)

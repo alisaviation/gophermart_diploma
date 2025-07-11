@@ -8,25 +8,19 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 	servicesmocks "github.com/vglushak/go-musthave-diploma-tpl/internal/services/mocks"
 	storagemocks "github.com/vglushak/go-musthave-diploma-tpl/internal/storage/mocks"
+	"go.uber.org/zap"
 )
-
-func init() {
-	if err := logger.InitLogger(); err != nil {
-		panic(err)
-	}
-}
 
 func TestNewOrderProcessor(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
 	interval := 5 * time.Second
 
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval, 5, zap.NewNop())
 
 	assert.NotNil(t, processor)
 	assert.Equal(t, mockStorage, processor.storage)
@@ -40,7 +34,7 @@ func TestOrderProcessor_StartStop(t *testing.T) {
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
 	interval := 100 * time.Millisecond
 
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval, 5, zap.NewNop())
 
 	processor.Start()
 
@@ -54,7 +48,7 @@ func TestOrderProcessor_StartStop(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -83,7 +77,7 @@ func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 	}, nil)
 
 	// Мок для транзакционного обновления
-	mockStorage.EXPECT().UpdateOrderStatusAndBalanceTx(ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(nil)
+	mockStorage.EXPECT().UpdateOrderStatusAndBalance(ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(nil)
 
 	err := processor.ProcessOrder(ctx, orderNumber)
 
@@ -95,7 +89,7 @@ func TestOrderProcessor_ProcessOrder_Success(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_InvalidOrder(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -114,7 +108,7 @@ func TestOrderProcessor_ProcessOrder_InvalidOrder(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_RateLimitError(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -133,7 +127,7 @@ func TestOrderProcessor_ProcessOrder_RateLimitError(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_ActualRateLimitError(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -152,7 +146,7 @@ func TestOrderProcessor_ProcessOrder_ActualRateLimitError(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_NoAccrual(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -176,7 +170,7 @@ func TestOrderProcessor_ProcessOrder_NoAccrual(t *testing.T) {
 func TestOrderProcessor_ProcessOrdersWithWorkers_RateLimit(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orders := []models.Order{
@@ -218,7 +212,7 @@ func TestOrderProcessor_ProcessOrdersWithWorkers_RateLimit(t *testing.T) {
 func TestOrderProcessor_ProcessOrdersWithWorkers_Success(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orders := []models.Order{
@@ -252,7 +246,7 @@ func TestOrderProcessor_ProcessOrdersWithWorkers_Success(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_TransactionalUpdate(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -281,7 +275,7 @@ func TestOrderProcessor_ProcessOrder_TransactionalUpdate(t *testing.T) {
 	}, nil)
 
 	// Мок для транзакционного обновления
-	mockStorage.EXPECT().UpdateOrderStatusAndBalanceTx(ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(nil)
+	mockStorage.EXPECT().UpdateOrderStatusAndBalance(ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(nil)
 
 	err := processor.ProcessOrder(ctx, orderNumber)
 
@@ -293,7 +287,7 @@ func TestOrderProcessor_ProcessOrder_TransactionalUpdate(t *testing.T) {
 func TestOrderProcessor_ProcessOrder_TransactionalUpdate_Error(t *testing.T) {
 	mockStorage := &storagemocks.Storage{}
 	mockAccrualService := &servicesmocks.AccrualServiceIface{}
-	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5)
+	processor := NewOrderProcessor(mockStorage, mockAccrualService, 5*time.Second, 5, zap.NewNop())
 
 	ctx := context.Background()
 	orderNumber := "12345678903"
@@ -322,7 +316,7 @@ func TestOrderProcessor_ProcessOrder_TransactionalUpdate_Error(t *testing.T) {
 	}, nil)
 
 	// Мок для ошибки транзакционного обновления
-	mockStorage.EXPECT().UpdateOrderStatusAndBalanceTx(ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(fmt.Errorf("transaction failed"))
+	mockStorage.EXPECT().UpdateOrderStatusAndBalance(ctx, orderNumber, "PROCESSED", &accrualValue, userID, 150.0, 0.0).Return(fmt.Errorf("transaction failed"))
 
 	err := processor.ProcessOrder(ctx, orderNumber)
 

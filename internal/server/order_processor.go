@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
 	"go.uber.org/zap"
@@ -21,10 +20,11 @@ type OrderProcessor struct {
 	stopChan       chan struct{}
 	workerCount    int
 	rateLimitChan  chan time.Duration
+	logger         *zap.Logger
 }
 
 // NewOrderProcessor создает новый процессор заказов
-func NewOrderProcessor(storage Storage, accrualService services.AccrualServiceIface, interval time.Duration, workerCount int) *OrderProcessor {
+func NewOrderProcessor(storage Storage, accrualService services.AccrualServiceIface, interval time.Duration, workerCount int, logger *zap.Logger) *OrderProcessor {
 	return &OrderProcessor{
 		storage:        storage,
 		accrualService: accrualService,
@@ -32,6 +32,7 @@ func NewOrderProcessor(storage Storage, accrualService services.AccrualServiceIf
 		stopChan:       make(chan struct{}),
 		workerCount:    workerCount,
 		rateLimitChan:  make(chan time.Duration, 1),
+		logger:         logger,
 	}
 }
 
@@ -55,7 +56,7 @@ func (p *OrderProcessor) processLoop() {
 		case <-ticker.C:
 			p.ProcessOrders()
 		case cooldown := <-p.rateLimitChan:
-			logger.Logger.Info("Rate limit detected, waiting for cooldown", zap.Duration("cooldown", cooldown))
+			p.logger.Info("Rate limit detected, waiting for cooldown", zap.Duration("cooldown", cooldown))
 			time.Sleep(cooldown)
 		case <-p.stopChan:
 			return
@@ -75,7 +76,7 @@ func (p *OrderProcessor) ProcessOrders() {
 		// Получаем заказы со статусом NEW и PROCESSING с пагинацией
 		orders, err := p.storage.GetOrdersByStatusPaginated(ctx, []string{"NEW", "PROCESSING"}, batchSize, offset)
 		if err != nil {
-			logger.Logger.Error("Failed to get orders for processing", zap.Error(err))
+			p.logger.Error("Failed to get orders for processing", zap.Error(err))
 			return
 		}
 
@@ -83,7 +84,7 @@ func (p *OrderProcessor) ProcessOrders() {
 			break
 		}
 
-		logger.Logger.Info("Processing batch of orders",
+		p.logger.Info("Processing batch of orders",
 			zap.Int("count", len(orders)),
 			zap.Int("offset", offset),
 			zap.Int("workers", p.workerCount))
@@ -123,7 +124,7 @@ func (p *OrderProcessor) ProcessOrdersWithWorkers(ctx context.Context, orders []
 			case orderChan <- order:
 			case <-rateLimitChan:
 				// Получили сигнал о rate limit, прекращаем отправку
-				logger.Logger.Info("Rate limit detected, stopping order processing")
+				p.logger.Info("Rate limit detected, stopping order processing")
 				return
 			case <-ctx.Done():
 				return
@@ -148,7 +149,7 @@ func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Ord
 			if err := p.ProcessOrder(ctx, order.Number); err != nil {
 				var rateLimitErr *services.RateLimitError
 				if errors.As(err, &rateLimitErr) {
-					logger.Logger.Info("Rate limit exceeded, worker stopping",
+					p.logger.Info("Rate limit exceeded, worker stopping",
 						zap.Duration("retryAfter", rateLimitErr.RetryAfter))
 					// Отправляем cooldown в основной цикл
 					select {
@@ -162,7 +163,7 @@ func (p *OrderProcessor) worker(ctx context.Context, orderChan <-chan models.Ord
 					}
 					return
 				}
-				logger.Logger.Error("Failed to process order",
+				p.logger.Error("Failed to process order",
 					zap.String("orderNumber", order.Number),
 					zap.Error(err))
 			}
@@ -214,7 +215,7 @@ func (p *OrderProcessor) ProcessOrder(ctx context.Context, orderNumber string) e
 
 		// Обновляем статус заказа и баланс пользователя атомарно
 		newCurrent := balance.Current + *accrual
-		if err := p.storage.UpdateOrderStatusAndBalanceTx(ctx, orderNumber, accrualInfo.Status, accrual, order.UserID, newCurrent, balance.Withdrawn); err != nil {
+		if err := p.storage.UpdateOrderStatusAndBalance(ctx, orderNumber, accrualInfo.Status, accrual, order.UserID, newCurrent, balance.Withdrawn); err != nil {
 			return fmt.Errorf("failed to update order status and balance transactionally: %w", err)
 		}
 		return nil

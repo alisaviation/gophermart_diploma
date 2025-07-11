@@ -4,6 +4,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/middleware"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
+	"go.uber.org/zap"
 )
 
 // Router настраивает HTTP роутер
@@ -13,8 +14,8 @@ type Router struct {
 }
 
 // NewRouter создает новый роутер
-func NewRouter(storage Storage, authService *services.AuthService, accrualService *services.AccrualService) *Router {
-	handlers := NewHandlers(storage, authService, accrualService)
+func NewRouter(storage Storage, authService *services.AuthService, accrualService *services.AccrualService, logger *zap.Logger) *Router {
+	handlers := NewHandlers(storage, authService, accrualService, logger)
 	router := chi.NewRouter()
 
 	// Middleware

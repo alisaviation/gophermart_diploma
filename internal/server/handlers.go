@@ -8,7 +8,6 @@ import (
 	"strconv"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/vglushak/go-musthave-diploma-tpl/internal/logger"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/middleware"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/services"
@@ -60,14 +59,16 @@ type Handlers struct {
 	storage        Storage
 	authService    *services.AuthService
 	accrualService *services.AccrualService
+	logger         *zap.Logger
 }
 
 // NewHandlers создает новые обработчики
-func NewHandlers(storage Storage, authService *services.AuthService, accrualService *services.AccrualService) *Handlers {
+func NewHandlers(storage Storage, authService *services.AuthService, accrualService *services.AccrualService, logger *zap.Logger) *Handlers {
 	return &Handlers{
 		storage:        storage,
 		authService:    authService,
 		accrualService: accrualService,
+		logger:         logger,
 	}
 }
 
@@ -88,7 +89,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверка, на существования пользователя
 	existingUser, err := h.storage.GetUserByLogin(r.Context(), req.Login)
 	if err != nil {
-		logger.Logger.Error("Failed to get user by login", zap.Error(err))
+		h.logger.Error("Failed to get user by login", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -100,7 +101,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Хешируем пароль
 	passwordHash, err := h.authService.HashPassword(req.Password)
 	if err != nil {
-		logger.Logger.Error("Failed to hash password", zap.Error(err))
+		h.logger.Error("Failed to hash password", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -108,7 +109,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Создаем пользователя
 	user, err := h.storage.CreateUser(r.Context(), req.Login, passwordHash)
 	if err != nil {
-		logger.Logger.Error("Failed to create user", zap.Error(err))
+		h.logger.Error("Failed to create user", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -116,7 +117,7 @@ func (h *Handlers) RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	// Генерируем JWT токен
 	token, err := h.authService.GenerateJWT(user.ID, user.Login)
 	if err != nil {
-		logger.Logger.Error("Failed to generate JWT", zap.Error(err))
+		h.logger.Error("Failed to generate JWT", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -143,7 +144,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Получаем пользователя
 	user, err := h.storage.GetUserByLogin(r.Context(), req.Login)
 	if err != nil {
-		logger.Logger.Error("Failed to get user by login", zap.Error(err))
+		h.logger.Error("Failed to get user by login", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -161,7 +162,7 @@ func (h *Handlers) LoginHandler(w http.ResponseWriter, r *http.Request) {
 	// Генерируем JWT токен
 	token, err := h.authService.GenerateJWT(user.ID, user.Login)
 	if err != nil {
-		logger.Logger.Error("Failed to generate JWT", zap.Error(err))
+		h.logger.Error("Failed to generate JWT", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -198,7 +199,7 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	// Проверяем, существует ли заказ
 	existingOrder, err := h.storage.GetOrderByNumber(r.Context(), orderNumber)
 	if err != nil {
-		logger.Logger.Error("Failed to get order by number", zap.Error(err))
+		h.logger.Error("Failed to get order by number", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -218,7 +219,7 @@ func (h *Handlers) UploadOrderHandler(w http.ResponseWriter, r *http.Request) {
 	// Создаем новый заказ
 	_, err = h.storage.CreateOrder(r.Context(), userID, orderNumber)
 	if err != nil {
-		logger.Logger.Error("Failed to create order", zap.Error(err))
+		h.logger.Error("Failed to create order", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -236,7 +237,7 @@ func (h *Handlers) GetOrdersHandler(w http.ResponseWriter, r *http.Request) {
 
 	orders, err := h.storage.GetOrdersByUserID(r.Context(), userID)
 	if err != nil {
-		logger.Logger.Error("Failed to get orders by user ID", zap.Error(err))
+		h.logger.Error("Failed to get orders by user ID", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -261,7 +262,7 @@ func (h *Handlers) GetBalanceHandler(w http.ResponseWriter, r *http.Request) {
 
 	balance, err := h.storage.GetBalance(r.Context(), userID)
 	if err != nil {
-		logger.Logger.Error("Failed to get balance", zap.Error(err))
+		h.logger.Error("Failed to get balance", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -299,7 +300,7 @@ func (h *Handlers) WithdrawHandler(w http.ResponseWriter, r *http.Request) {
 	// Обрабатываем списание
 	_, err := h.storage.ProcessWithdrawal(r.Context(), userID, req.Order, req.Sum)
 	if err != nil {
-		logger.Logger.Error("Failed to process withdrawal", zap.Error(err))
+		h.logger.Error("Failed to process withdrawal", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
@@ -317,7 +318,7 @@ func (h *Handlers) GetWithdrawalsHandler(w http.ResponseWriter, r *http.Request)
 
 	withdrawals, err := h.storage.GetWithdrawalsByUserID(r.Context(), userID)
 	if err != nil {
-		logger.Logger.Error("Failed to get withdrawals by user ID", zap.Error(err))
+		h.logger.Error("Failed to get withdrawals by user ID", zap.Error(err))
 		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
