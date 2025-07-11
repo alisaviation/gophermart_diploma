@@ -255,6 +255,34 @@ func (s *DatabaseStorage) GetOrdersByStatus(ctx context.Context, statuses []stri
 	return orders, nil
 }
 
+// GetOrdersByStatusPaginated получает заказы по статусам с пагинацией
+func (s *DatabaseStorage) GetOrdersByStatusPaginated(ctx context.Context, statuses []string, limit, offset int) ([]models.Order, error) {
+	if len(statuses) == 0 {
+		return []models.Order{}, nil
+	}
+
+	// Строим запрос с параметрами для статусов и пагинацией
+	query := `SELECT id, user_id, number, status, accrual, uploaded_at FROM orders WHERE status = ANY($1) ORDER BY uploaded_at ASC LIMIT $2 OFFSET $3`
+
+	rows, err := s.pool.Query(ctx, query, statuses, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get orders by status with pagination: %w", err)
+	}
+	defer rows.Close()
+
+	var orders []models.Order
+	for rows.Next() {
+		var order models.Order
+		err := rows.Scan(&order.ID, &order.UserID, &order.Number, &order.Status, &order.Accrual, &order.UploadedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan order: %w", err)
+		}
+		orders = append(orders, order)
+	}
+
+	return orders, nil
+}
+
 // ProcessWithdrawal выполняет списание средств в транзакции
 func (s *DatabaseStorage) ProcessWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error) {
 	// Начинаем транзакцию

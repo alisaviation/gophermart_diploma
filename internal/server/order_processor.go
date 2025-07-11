@@ -46,37 +46,47 @@ func (p *OrderProcessor) processLoop() {
 	for {
 		select {
 		case <-ticker.C:
-			p.processOrders()
+			p.ProcessOrders()
 		case <-p.stopChan:
 			return
 		}
 	}
 }
 
-// processOrders обрабатывает заказы со статусом NEW и PROCESSING
-func (p *OrderProcessor) processOrders() {
+// ProcessOrders обрабатывает заказы со статусом NEW и PROCESSING
+func (p *OrderProcessor) ProcessOrders() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Получаем заказы со статусом NEW и PROCESSING
-	orders, err := p.storage.GetOrdersByStatus(ctx, []string{"NEW", "PROCESSING"})
-	if err != nil {
-		log.Printf("Failed to get orders for processing: %v", err)
-		return
-	}
+	const batchSize = 100
+	offset := 0
 
-	if len(orders) == 0 {
-		return
-	}
-
-	log.Printf("Processing %d orders...", len(orders))
-
-	// Обрабатываем каждый заказ
-	for _, order := range orders {
-		if err := p.ProcessOrder(ctx, order.Number); err != nil {
-			log.Printf("Failed to process order %s: %v", order.Number, err)
-			continue
+	for {
+		// Получаем заказы со статусом NEW и PROCESSING с пагинацией
+		orders, err := p.storage.GetOrdersByStatusPaginated(ctx, []string{"NEW", "PROCESSING"}, batchSize, offset)
+		if err != nil {
+			log.Printf("Failed to get orders for processing: %v", err)
+			return
 		}
+
+		if len(orders) == 0 {
+			break
+		}
+
+		log.Printf("Processing batch of %d orders (offset: %d)...", len(orders), offset)
+
+		for _, order := range orders {
+			if err := p.ProcessOrder(ctx, order.Number); err != nil {
+				log.Printf("Failed to process order %s: %v", order.Number, err)
+				continue
+			}
+		}
+
+		if len(orders) < batchSize {
+			break
+		}
+
+		offset += batchSize
 	}
 }
 

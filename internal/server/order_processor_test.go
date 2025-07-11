@@ -60,6 +60,11 @@ func (m *MockStorage) GetOrdersByStatus(ctx context.Context, statuses []string) 
 	return args.Get(0).([]models.Order), args.Error(1)
 }
 
+func (m *MockStorage) GetOrdersByStatusPaginated(ctx context.Context, statuses []string, limit, offset int) ([]models.Order, error) {
+	args := m.Called(ctx, statuses, limit, offset)
+	return args.Get(0).([]models.Order), args.Error(1)
+}
+
 func (m *MockStorage) UpdateOrderStatus(ctx context.Context, number string, status string, accrual *float64) error {
 	args := m.Called(ctx, number, status, accrual)
 	return args.Error(0)
@@ -137,16 +142,12 @@ func TestOrderProcessor_StartStop(t *testing.T) {
 
 	processor := NewOrderProcessor(mockStorage, mockAccrualService, interval)
 
-	// Запускаем процессор
 	processor.Start()
 
-	// Ждем немного, чтобы убедиться, что он запустился
 	time.Sleep(50 * time.Millisecond)
 
-	// Останавливаем процессор
 	processor.Stop()
 
-	// Ждем немного, чтобы убедиться, что он остановился
 	time.Sleep(50 * time.Millisecond)
 }
 

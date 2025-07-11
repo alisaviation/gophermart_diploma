@@ -18,6 +18,7 @@ type Storage interface {
 	GetOrderByNumber(ctx context.Context, number string) (*models.Order, error)
 	GetOrdersByUserID(ctx context.Context, userID int64) ([]models.Order, error)
 	GetOrdersByStatus(ctx context.Context, statuses []string) ([]models.Order, error)
+	GetOrdersByStatusPaginated(ctx context.Context, statuses []string, limit, offset int) ([]models.Order, error)
 	UpdateOrderStatus(ctx context.Context, number string, status string, accrual *float64) error
 
 	// Balance methods
@@ -27,7 +28,7 @@ type Storage interface {
 	// Withdrawal methods
 	CreateWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error)
 	GetWithdrawalsByUserID(ctx context.Context, userID int64) ([]models.Withdrawal, error)
-	
+
 	// Transactional withdrawal - проверяет баланс и создает списание в одной транзакции
 	ProcessWithdrawal(ctx context.Context, userID int64, order string, sum float64) (*models.Withdrawal, error)
 
