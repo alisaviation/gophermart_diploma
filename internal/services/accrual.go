@@ -12,10 +12,6 @@ import (
 	"github.com/vglushak/go-musthave-diploma-tpl/internal/models"
 )
 
-func init() {
-	rand.Seed(time.Now().UnixNano())
-}
-
 // AccrualService сервис для работы с системой начисления баллов
 type AccrualService struct {
 	client  *http.Client
