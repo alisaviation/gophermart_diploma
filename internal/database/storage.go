@@ -11,7 +11,7 @@ type Storage interface {
 }
 
 type User interface {
-	CreateUser(user models.User) error
+	CreateUser(user models.User) (int, error)
 	GetUserByLogin(login string) (*models.User, error)
 }
 

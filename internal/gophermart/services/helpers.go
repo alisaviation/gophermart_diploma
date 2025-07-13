@@ -29,7 +29,7 @@ func (s *OrdersService) updatePendingOrdersStatus(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 
-	orders, err := s.OrderDB.GetOrdersByStatuses([]string{"NEW", "PROCESSING"})
+	orders, err := s.OrderDB.GetOrdersByStatuses([]string{"NEW"})
 	if err != nil {
 		logger.Log.Error("Failed to get pending orders for update",
 			zap.Error(err))
@@ -51,6 +51,7 @@ func (s *OrdersService) updatePendingOrdersStatus(ctx context.Context) {
 }
 
 func (s *OrdersService) updateSingleOrderStatus(ctx context.Context, order models.Order) {
+
 	accrualInfo, err := s.AccrualClient.GetOrderAccrual(ctx, order.Number)
 	if err != nil {
 		logger.Log.Warn("Failed to get accrual info",

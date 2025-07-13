@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
 	"time"
 
 	"go.uber.org/zap"
 
-	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/services"
 	"github.com/alisaviation/internal/middleware"
 	"github.com/alisaviation/pkg/logger"
@@ -28,60 +26,34 @@ func NewOrderHandler(orderService services.OrderService, serverCtx context.Conte
 }
 
 func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
-	var goods []dto.AccrualGood
-	var orderNumber string
+	if r.Header.Get("Content-Type") != "text/plain" {
+		http.Error(w, "Content-Type must be text/plain", http.StatusUnsupportedMediaType)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(h.serverCtx, 10*time.Second)
 	defer cancel()
 
-	contentType := r.Header.Get("Content-Type")
 	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	switch contentType {
-	case "text/plain":
-		body, err := io.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Bad request", http.StatusBadRequest)
-			return
-		}
-		defer r.Body.Close()
-		orderNumber = string(body)
-		goods = []dto.AccrualGood{}
-
-	case "application/json":
-		var req struct {
-			Order string            `json:"order"`
-			Goods []dto.AccrualGood `json:"goods"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
-			return
-		}
-		orderNumber = req.Order
-		goods = req.Goods
-
-		for _, good := range goods {
-			if good.Description == "" || good.Price <= 0 {
-				logger.Log.Warn("Invalid good data",
-					zap.Any("good", good),
-					zap.String("order", orderNumber))
-				http.Error(w, "Invalid good data", http.StatusBadRequest)
-				return
-			}
-		}
-
-	default:
-		http.Error(w, "Unsupported content type", http.StatusBadRequest)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Bad request", http.StatusBadRequest)
 		return
 	}
+	defer r.Body.Close()
+
+	orderNumber := string(body)
 	if orderNumber == "" {
 		http.Error(w, "Empty order number", http.StatusBadRequest)
 		return
 	}
-	status, err := h.orderService.UploadOrder(ctx, userID, orderNumber, goods)
+
+	status, err := h.orderService.UploadOrder(ctx, userID, orderNumber, nil)
 	if err != nil {
 		logger.Log.Error("Failed to process order",
 			zap.Error(err),
@@ -142,5 +114,5 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 
 		response = append(response, resp)
 	}
-	writeJSONResponse(w, http.StatusOK, orders, zap.Int("userID", userID))
+	writeJSONResponse(w, http.StatusOK, response, zap.Int("userID", userID))
 }

@@ -55,11 +55,12 @@ func (s *AuthStructService) Register(login, password string) (string, error) {
 		Login:        login,
 		PasswordHash: string(hashedPassword),
 	}
-	if err := s.UserRepo.CreateUser(user); err != nil {
+	id, err := s.UserRepo.CreateUser(user)
+	if err != nil {
 		return "", fmt.Errorf("user creation failed: %w", err)
 	}
 
-	token, err := s.JwtService.GenerateToken(user.ID, user.Login)
+	token, err := s.JwtService.GenerateToken(id, user.Login)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate token: %w", err)
 	}

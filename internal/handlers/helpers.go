@@ -39,10 +39,3 @@ func writeJSONResponse(w http.ResponseWriter, statusCode int, data interface{}, 
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
-
-//func writeJSONError(w http.ResponseWriter, status int, response dto.ErrorResponse, fields ...zap.Field) {
-//	w.Header().Set("Content-Type", "application/json")
-//	w.WriteHeader(status)
-//	json.NewEncoder(w).Encode(response)
-//	logger.Log.Error(response.Error, fields...)
-//}

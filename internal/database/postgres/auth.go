@@ -6,12 +6,13 @@ import (
 	"github.com/alisaviation/internal/gophermart/models"
 )
 
-func (p *PostgresStorage) CreateUser(user models.User) error {
-	_, err := p.db.Exec(
-		"INSERT INTO users (login, password_hash) VALUES ($1, $2)",
+func (p *PostgresStorage) CreateUser(user models.User) (int, error) {
+	var id int
+	err := p.db.QueryRow(
+		"INSERT INTO users (login, password_hash) VALUES ($1, $2) RETURNING id",
 		user.Login, user.PasswordHash,
-	)
-	return err
+	).Scan(&id)
+	return id, err
 }
 
 func (p *PostgresStorage) GetUserByLogin(login string) (*models.User, error) {

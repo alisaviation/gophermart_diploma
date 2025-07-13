@@ -6,6 +6,17 @@ meta {
 
 post {
   url: http://localhost:8080/api/user/balance/withdraw
-  body: none
-  auth: none
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJsb2dpbiI6InRlc3R1c2VyIiwiaXNzIjoiZ29waGVybWFydCIsImV4cCI6MTc1MjI3MDI4NywiaWF0IjoxNzUyMTgzODg3fQ.FF2lAY2MTR_AtcH1Uwk77fU7tyGzKirNhVQ5OTPce_0
+}
+
+body:json {
+  {
+      "order": "42",
+      "sum": 0
+  } 
 }
