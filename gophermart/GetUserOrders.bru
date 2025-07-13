@@ -1,0 +1,15 @@
+meta {
+  name: GetUserOrders
+  type: http
+  seq: 5
+}
+
+get {
+  url: http://localhost:8080/api/user/orders
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjowLCJsb2dpbiI6InRlc3R1c2VyMSIsImlzcyI6ImdvcGhlcm1hcnQiLCJleHAiOjE3NTI0OTM5MzksImlhdCI6MTc1MjQwNzUzOX0.DsrMCA5yydD1PhJzZ5fn1K6ueENDiH3jWcIrwRppW54
+}

@@ -1,0 +1,15 @@
+meta {
+  name: GetWithdrawals
+  type: http
+  seq: 8
+}
+
+get {
+  url: http://localhost:8080/api/user/withdrawals
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJsb2dpbiI6InRlc3R1c2VyIiwiaXNzIjoiZ29waGVybWFydCIsImV4cCI6MTc1MjI2ODM2OSwiaWF0IjoxNzUyMTgxOTY5fQ._afiWFL4NVbCljllWrXb4vs9H1vpbWDmzBl3hUKJf4k
+}

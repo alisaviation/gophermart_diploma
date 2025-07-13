@@ -1,0 +1,23 @@
+meta {
+  name: CreateOrder
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:8080/api/user/orders
+  body: text
+  auth: bearer
+}
+
+headers {
+  Content-Type: text/plain
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJsb2dpbiI6InRlc3R1c2VyIiwiaXNzIjoiZ29waGVybWFydCIsImV4cCI6MTc1MjE4NDA0NywiaWF0IjoxNzUyMDk3NjQ3fQ.a8A9_YbNaBalR5S7MYxIr3QZdg58RojCrPBI4YoCOSA
+}
+
+body:text {
+  5555555555554444
+}
