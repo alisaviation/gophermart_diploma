@@ -10,21 +10,6 @@ import (
 	"github.com/alisaviation/pkg/logger"
 )
 
-func (s *OrdersService) StartStatusUpdater(ctx context.Context, interval time.Duration) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			logger.Log.Info("Stopping status updater")
-			return
-		case <-ticker.C:
-			s.updatePendingOrdersStatus(ctx)
-		}
-	}
-}
-
 func (s *OrdersService) updatePendingOrdersStatus(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()

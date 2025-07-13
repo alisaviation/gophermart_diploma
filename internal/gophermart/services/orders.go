@@ -96,10 +96,7 @@ func (s *OrdersService) UploadOrder(ctx context.Context, userID int, orderNumber
 			zap.Error(err))
 		return http.StatusInternalServerError, err
 	}
-	go s.processOrderAsync(orderNumber, goods)
-	logger.Log.Info("Order accepted for processing",
-		zap.String("order", orderNumber),
-		zap.Int("user_id", userID))
+
 	return http.StatusAccepted, nil
 }
 
@@ -149,70 +146,4 @@ func (s *OrdersService) GetOrders(userID int) ([]models.Order, error) {
 		}
 	}
 	return orders, nil
-}
-
-func (s *OrdersService) processOrderAsync(orderNumber string, goods []dto.AccrualGood) {
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	for _, good := range goods {
-		if good.Reward > 0 && good.RewardType != "" {
-			reward := dto.AccrualGoodReward{
-				Match:      good.Description,
-				Reward:     good.Reward,
-				RewardType: good.RewardType,
-			}
-
-			if err := s.AccrualClient.RegisterGoodReward(ctx, reward); err != nil {
-				logger.Log.Warn("Failed to register reward for good",
-					zap.String("order", orderNumber),
-					zap.String("good", good.Description),
-					zap.Error(err))
-			}
-		}
-	}
-	if err := s.AccrualClient.RegisterOrder(ctx, orderNumber, goods); err != nil {
-		logger.Log.Error("Failed to register order in accrual",
-			zap.String("order", orderNumber),
-			zap.Error(err))
-
-	}
-
-	orderInfo, err := s.AccrualClient.GetOrderAccrual(ctx, orderNumber)
-	if err != nil {
-		logger.Log.Warn("Failed to get order accrual info",
-			zap.String("order", orderNumber),
-			zap.Error(err))
-	}
-
-	if orderInfo.Status == "PROCESSED" {
-		err := s.OrderDB.UpdateOrderFromAccrual(
-			orderNumber,
-			orderInfo.Status,
-			orderInfo.Accrual,
-		)
-		if err != nil {
-			logger.Log.Error("Failed to update order from accrual",
-				zap.String("order", orderNumber),
-				zap.Error(err))
-
-		}
-
-		logger.Log.Info("Order successfully processed with accrual",
-			zap.String("order", orderNumber),
-			zap.Float64("accrual", orderInfo.Accrual))
-
-	}
-
-	if orderInfo.Status == "INVALID" {
-		err := s.OrderDB.UpdateOrderStatus(
-			orderNumber,
-			"INVALID",
-		)
-		if err != nil {
-			logger.Log.Error("Failed to mark order as invalid",
-				zap.String("order", orderNumber),
-				zap.Error(err))
-		}
-	}
 }

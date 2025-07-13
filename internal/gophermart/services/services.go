@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"time"
 
 	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/models"
@@ -23,7 +22,6 @@ type BalanceService interface {
 type OrderService interface {
 	UploadOrder(ctx context.Context, userID int, orderNumber string, goods []dto.AccrualGood) (int, error)
 	GetOrders(userID int) ([]models.Order, error)
-	StartStatusUpdater(ctx context.Context, interval time.Duration)
 	ValidateOrderNumber(number string) bool
 }
 

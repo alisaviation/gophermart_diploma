@@ -130,8 +130,6 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 	orderHandler := handlers.NewOrderHandler(orderService, s.ctx)
 	balanceHandler := handlers.NewBalanceHandler(balanceService, orderService)
 
-	go orderService.StartStatusUpdater(s.ctx, 15*time.Second)
-
 	r.Post("/api/user/register", authHandler.Register)
 	r.Post("/api/user/login", authHandler.Login)
 	r.Group(func(r chi.Router) {
