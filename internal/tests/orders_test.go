@@ -49,7 +49,7 @@ func TestOrderService_UploadOrder(t *testing.T) {
 		{
 			name:        "order exists for same user",
 			userID:      1,
-			orderNumber: "4561261212345467", // valid Luhn number
+			orderNumber: "4561261212345467",
 			mockSetup: func() {
 				mockOrderDB.On("GetOrderByNumber", "4561261212345467").
 					Return(&models.Order{UserID: 1, Number: "4561261212345467"}, nil)

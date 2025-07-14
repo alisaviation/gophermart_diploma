@@ -24,7 +24,7 @@ func TestJWTService_GenerateToken(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		wantLen int // ожидаемая минимальная длина токена
+		wantLen int
 		wantErr bool
 	}{
 		{
@@ -37,7 +37,7 @@ func TestJWTService_GenerateToken(t *testing.T) {
 				userID: 1,
 				login:  "testuser",
 			},
-			wantLen: 50, // JWT токены обычно длинные
+			wantLen: 50,
 			wantErr: false,
 		},
 		{
@@ -92,7 +92,6 @@ func TestJWTService_ValidateToken(t *testing.T) {
 	invalidKey := []byte("invalid_secret_key")
 	invalidIssuer := "invalid_issuer"
 
-	// Генерируем валидный токен для тестов
 	validService := &services.JWTService{
 		SecretKey: validKey,
 		Issuer:    validIssuer,
@@ -194,7 +193,6 @@ func TestJWTService_ValidateToken(t *testing.T) {
 			}
 
 			if !tt.wantErr {
-				// Проверяем основные поля, так как временные метки будут отличаться
 				if got.UserID != tt.want.UserID || got.Login != tt.want.Login || got.Issuer != tt.want.Issuer {
 					t.Errorf("ValidateToken() got = %v, want %v", got, tt.want)
 				}

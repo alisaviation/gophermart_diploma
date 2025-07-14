@@ -13,10 +13,10 @@ var (
 	SugaredLog *zap.SugaredLogger = Log.Sugar()
 )
 
-type Config struct {
-	Level       string `yaml:"level" env:"LOG_LEVEL" env-default:"info"`
-	Development bool   `yaml:"development" env:"LOG_DEV" env-default:"false"`
-}
+//type Config struct {
+//	Level       string `yaml:"level" env:"LOG_LEVEL" env-default:"info"`
+//	Development bool   `yaml:"development" env:"LOG_DEV" env-default:"false"`
+//}
 
 func Initialize(level string) error {
 	lvl, err := zap.ParseAtomicLevel(level)

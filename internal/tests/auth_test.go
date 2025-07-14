@@ -189,7 +189,6 @@ func Test_authService_Login(t *testing.T) {
 		{
 			name: "empty login",
 			setupMock: func(mur *mocks.MockUserRepository, mjwt *mocks.MockJWTService) {
-				// No expectations as the validation should fail before calling the repository
 			},
 			login:       "",
 			password:    "anypassword",
@@ -200,7 +199,6 @@ func Test_authService_Login(t *testing.T) {
 		{
 			name: "empty password",
 			setupMock: func(mur *mocks.MockUserRepository, mjwt *mocks.MockJWTService) {
-				// No expectations as the validation should fail before calling the repository
 			},
 			login:       "validuser",
 			password:    "",

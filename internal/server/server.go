@@ -162,7 +162,7 @@ func (s *ServerApp) shutdown(ctx context.Context) {
 			logger.Log.Error("Failed to close database connection", zap.Error(err))
 		}
 	}
-	// Ожидание с таймаутом
+
 	select {
 	case <-time.After(5 * time.Second):
 		logger.Log.Warn("Shutdown timed out")
@@ -172,18 +172,6 @@ func (s *ServerApp) shutdown(ctx context.Context) {
 		return ch
 	}():
 	}
-	//done := make(chan struct{})
-	//go func() {
-	//	s.wg.Wait()
-	//	close(done)
-	//}()
-
-	//select {
-	//case <-done:
-	//	logger.Log.Info("All background tasks completed")
-	//case <-ctx.Done():
-	//	logger.Log.Warn("Graceful shutdown timed out, forcing exit")
-	//}
 }
 
 func (s *ServerApp) initDB(ctx context.Context) (*postgres.PostgresStorage, error) {
