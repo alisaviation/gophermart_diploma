@@ -12,17 +12,16 @@ import (
 
 	"github.com/alisaviation/internal/database"
 	"github.com/alisaviation/internal/database/postgres"
-	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/models"
 	"github.com/alisaviation/pkg/logger"
 )
 
 type OrdersService struct {
 	OrderDB       database.Order
-	AccrualClient *AccrualClient
+	AccrualClient AccrualClientInterface
 }
 
-func NewOrderService(orderDB database.Order, accrualClient *AccrualClient) OrderService {
+func NewOrderService(orderDB database.Order, accrualClient AccrualClientInterface) OrderService {
 	return &OrdersService{
 		OrderDB:       orderDB,
 		AccrualClient: accrualClient,
@@ -61,7 +60,7 @@ func (s *OrdersService) ValidateOrderNumber(number string) bool {
 	return sum%10 == 0
 }
 
-func (s *OrdersService) UploadOrder(ctx context.Context, userID int, orderNumber string, goods []dto.AccrualGood) (int, error) {
+func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error) {
 	if _, err := strconv.Atoi(orderNumber); err != nil {
 		return http.StatusBadRequest, errors.New("order number must contain only digits")
 	}

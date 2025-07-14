@@ -20,11 +20,15 @@ type BalanceService interface {
 }
 
 type OrderService interface {
-	UploadOrder(ctx context.Context, userID int, orderNumber string, goods []dto.AccrualGood) (int, error)
+	UploadOrder(userID int, orderNumber string) (int, error)
 	GetOrders(userID int) ([]models.Order, error)
 	ValidateOrderNumber(number string) bool
 }
 
 type JWTServiceInterface interface {
 	GenerateToken(userID int, login string) (string, error)
+}
+
+type AccrualClientInterface interface {
+	GetOrderAccrual(ctx context.Context, orderNumber string) (*dto.AccrualResponse, error)
 }

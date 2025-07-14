@@ -24,7 +24,6 @@ func (s *BalancesService) GetUserBalance(userID int) (*models.Balance, error) {
 }
 
 func (s *BalancesService) CreateWithdrawal(withdrawal *models.Withdrawal) error {
-	// Проверка уникальности номера заказа
 	exists, err := s.Balance.WithdrawalExists(withdrawal.OrderNumber)
 	if err != nil {
 		return fmt.Errorf("failed to check withdrawal existence: %w", err)
@@ -33,7 +32,6 @@ func (s *BalancesService) CreateWithdrawal(withdrawal *models.Withdrawal) error 
 		return fmt.Errorf("withdrawal for order %s already exists", withdrawal.OrderNumber)
 	}
 
-	// Создание списания
 	if err := s.Balance.CreateWithdrawal(withdrawal); err != nil {
 		return fmt.Errorf("failed to create withdrawal: %w", err)
 	}

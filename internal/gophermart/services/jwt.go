@@ -9,14 +9,14 @@ import (
 )
 
 type JWTService struct {
-	secretKey []byte
-	issuer    string
+	SecretKey []byte
+	Issuer    string
 }
 
 func NewJWTService(secret string, issuer string) *JWTService {
 	return &JWTService{
-		secretKey: []byte(secret),
-		issuer:    issuer,
+		SecretKey: []byte(secret),
+		Issuer:    issuer,
 	}
 }
 
@@ -33,12 +33,12 @@ func (s *JWTService) GenerateToken(userID int, login string) (string, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    s.issuer,
+			Issuer:    s.Issuer,
 		},
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(s.secretKey)
+	return token.SignedString(s.SecretKey)
 }
 
 func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
@@ -46,7 +46,7 @@ func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return s.secretKey, nil
+		return s.SecretKey, nil
 	})
 
 	if err != nil {
@@ -58,8 +58,8 @@ func (s *JWTService) ValidateToken(tokenString string) (*Claims, error) {
 		return nil, errors.New("invalid token claims")
 	}
 
-	if claims.Issuer != s.issuer {
-		return nil, errors.New("invalid token issuer")
+	if claims.Issuer != s.Issuer {
+		return nil, errors.New("invalid token Issuer")
 	}
 
 	return claims, nil

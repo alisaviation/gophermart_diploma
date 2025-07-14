@@ -8,6 +8,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/models"
 	"github.com/alisaviation/internal/gophermart/services"
 	"github.com/alisaviation/internal/middleware"
@@ -41,8 +42,12 @@ func (h *BalanceHandler) GetUserBalance(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
+	response := dto.BalanceResponse{
+		Current:   balance.Current,
+		Withdrawn: balance.Withdrawn,
+	}
 
-	writeJSONResponse(w, http.StatusOK, balance, zap.Int("userID", userID))
+	writeJSONResponse(w, http.StatusOK, response, zap.Int("userID", userID))
 }
 
 func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
@@ -52,11 +57,7 @@ func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-
-	var req struct {
-		Order string  `json:"order"`
-		Sum   float64 `json:"sum"`
-	}
+	var req dto.WithdrawRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		logger.Log.Error("Failed to decode withdrawal request", zap.Error(err))
@@ -129,19 +130,12 @@ func (h *BalanceHandler) GetWithdrawals(w http.ResponseWriter, r *http.Request) 
 
 	if len(withdrawals) == 0 {
 		http.Error(w, "No content", http.StatusNoContent)
-		//w.WriteHeader(http.StatusNoContent)
 		return
 	}
 
-	type WithdrawalResponse struct {
-		Order       string  `json:"order"`
-		Sum         float64 `json:"sum"`
-		ProcessedAt string  `json:"processed_at"`
-	}
-
-	response := make([]WithdrawalResponse, 0, len(withdrawals))
+	response := make([]dto.WithdrawalResponse, 0, len(withdrawals))
 	for _, wd := range withdrawals {
-		response = append(response, WithdrawalResponse{
+		response = append(response, dto.WithdrawalResponse{
 			Order:       wd.OrderNumber,
 			Sum:         wd.Sum,
 			ProcessedAt: wd.ProcessedAt.Format(time.RFC3339),

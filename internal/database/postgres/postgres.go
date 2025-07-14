@@ -67,18 +67,5 @@ func (p *PostgresStorage) createTable(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to create withdrawals table: %w", err)
 	}
-	//_, err = tx.ExecContext(ctx, `
-	//    CREATE INDEX IF NOT EXISTS idx_orders_user_id ON orders(user_id)
-	//`)
-	//if err != nil {
-	//	return fmt.Errorf("failed to create orders user_id index: %w", err)
-	//}
-	//
-	//_, err = tx.ExecContext(ctx, `
-	//    CREATE INDEX IF NOT EXISTS idx_withdrawals_user_id ON withdrawals(user_id)
-	//`)
-	//if err != nil {
-	//	return fmt.Errorf("failed to create withdrawals user_id index: %w", err)
-	//}
 	return tx.Commit()
 }

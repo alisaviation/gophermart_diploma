@@ -1,14 +1,17 @@
 package dto
 
-//type WithdrawRequest struct {
-//	Order string  `json:"order" validate:"required,numeric"`
-//	Sum   float64 `json:"sum" validate:"required,gt=0"`
-//}
-//
-//type ErrorResponse struct {
-//	Error string `json:"error"`
-//}
+type WithdrawRequest struct {
+	Order string  `json:"order" validate:"required"`
+	Sum   float64 `json:"sum" validate:"required,gt=0"`
+}
 
-//func NewErrorResponse(message string) ErrorResponse {
-//	return ErrorResponse{Error: message}
-//}
+type WithdrawalResponse struct {
+	Order       string  `json:"order"`
+	Sum         float64 `json:"sum"`
+	ProcessedAt string  `json:"processed_at"`
+}
+
+type BalanceResponse struct {
+	Current   float64 `json:"current"`
+	Withdrawn float64 `json:"withdrawn"`
+}

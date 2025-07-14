@@ -127,7 +127,7 @@ func (s *ServerApp) registerRoutes(r *chi.Mux) {
 	balanceService := services.NewBalanceService(s.storage)
 
 	authHandler := handlers.NewAuthHandler(authService)
-	orderHandler := handlers.NewOrderHandler(orderService, s.ctx)
+	orderHandler := handlers.NewOrderHandler(orderService)
 	balanceHandler := handlers.NewBalanceHandler(balanceService, orderService)
 
 	r.Post("/api/user/register", authHandler.Register)

@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"context"
 	"io"
 	"net/http"
-	"time"
 
 	"go.uber.org/zap"
 
+	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/services"
 	"github.com/alisaviation/internal/middleware"
 	"github.com/alisaviation/pkg/logger"
@@ -15,13 +14,11 @@ import (
 
 type OrderHandler struct {
 	orderService services.OrderService
-	serverCtx    context.Context
 }
 
-func NewOrderHandler(orderService services.OrderService, serverCtx context.Context) *OrderHandler {
+func NewOrderHandler(orderService services.OrderService) *OrderHandler {
 	return &OrderHandler{
 		orderService: orderService,
-		serverCtx:    serverCtx,
 	}
 }
 
@@ -30,9 +27,6 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Content-Type must be text/plain", http.StatusUnsupportedMediaType)
 		return
 	}
-
-	ctx, cancel := context.WithTimeout(h.serverCtx, 10*time.Second)
-	defer cancel()
 
 	userID, ok := r.Context().Value(middleware.UserIDKey).(int)
 	if !ok {
@@ -47,17 +41,20 @@ func (h *OrderHandler) UploadOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	orderNumber := string(body)
-	if orderNumber == "" {
+	req := dto.UploadOrderRequest{
+		OrderNumber: string(body),
+	}
+
+	if req.OrderNumber == "" {
 		http.Error(w, "Empty order number", http.StatusBadRequest)
 		return
 	}
 
-	status, err := h.orderService.UploadOrder(ctx, userID, orderNumber, nil)
+	status, err := h.orderService.UploadOrder(userID, req.OrderNumber)
 	if err != nil {
 		logger.Log.Error("Failed to process order",
 			zap.Error(err),
-			zap.String("orderNumber", orderNumber),
+			zap.String("orderNumber", req.OrderNumber),
 			zap.Int("userID", userID))
 
 		switch status {
@@ -93,16 +90,10 @@ func (h *OrderHandler) GetOrders(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	type orderResponse struct {
-		Number     string    `json:"number"`
-		Status     string    `json:"status"`
-		Accrual    float64   `json:"accrual,omitempty"`
-		UploadedAt time.Time `json:"uploaded_at"`
-	}
 
-	response := make([]orderResponse, 0, len(orders))
+	response := make([]dto.OrderResponse, 0, len(orders))
 	for _, order := range orders {
-		resp := orderResponse{
+		resp := dto.OrderResponse{
 			Number:     order.Number,
 			Status:     order.Status,
 			UploadedAt: order.UploadedAt,
