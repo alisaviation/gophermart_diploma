@@ -28,8 +28,12 @@ func NewOrderService(orderDB database.Order, accrualClient AccrualClientInterfac
 	}
 }
 
+const (
+	minOrderNumberLength = 2
+)
+
 func (s *OrdersService) ValidateOrderNumber(number string) bool {
-	if len(number) < 2 {
+	if len(number) < minOrderNumberLength {
 		return false
 	}
 
@@ -69,17 +73,37 @@ func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error)
 		return http.StatusUnprocessableEntity, errors.New("invalid order number by Luhn algorithm")
 	}
 
+	order, err := s.getNumberOrder(userID, orderNumber)
+	if err != nil {
+		logger.Log.Error("Failed to check existing order",
+			zap.String("order", orderNumber),
+			zap.Error(err))
+		return http.StatusInternalServerError, err
+	}
+
+	err = s.OrderDB.CreateOrder(order)
+	if err != nil {
+		logger.Log.Error("Failed to create order",
+			zap.String("order", orderNumber),
+			zap.Error(err))
+		return http.StatusInternalServerError, err
+	}
+
+	return http.StatusAccepted, nil
+}
+
+func (s *OrdersService) getNumberOrder(userID int, orderNumber string) (*models.Order, error) {
 	existingOrder, err := s.OrderDB.GetOrderByNumber(orderNumber)
 	switch {
 	case err != nil && !errors.Is(err, postgres.ErrNotFound):
 		logger.Log.Error("Failed to check existing order",
 			zap.String("order", orderNumber),
 			zap.Error(err))
-		return http.StatusInternalServerError, fmt.Errorf("failed to check order: %w", err)
+		return nil, fmt.Errorf("failed to check order: %w", err)
 	case existingOrder != nil && existingOrder.UserID == userID:
-		return http.StatusOK, nil
+		return nil, nil
 	case existingOrder != nil:
-		return http.StatusConflict, errors.New("order number already exists for another user")
+		return nil, errors.New("order number already exists for another user")
 	}
 
 	order := &models.Order{
@@ -88,15 +112,7 @@ func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error)
 		Status:     "NEW",
 		UploadedAt: time.Now(),
 	}
-
-	if err := s.OrderDB.CreateOrder(order); err != nil {
-		logger.Log.Error("Failed to create order",
-			zap.String("order", orderNumber),
-			zap.Error(err))
-		return http.StatusInternalServerError, err
-	}
-
-	return http.StatusAccepted, nil
+	return order, nil
 }
 
 func (s *OrdersService) GetOrders(userID int) ([]models.Order, error) {

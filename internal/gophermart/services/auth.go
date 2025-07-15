@@ -30,13 +30,6 @@ func NewAuthService(userRepo database.User, jwtSecret string) AuthService {
 }
 
 func (s *AuthStructService) Register(login, password string) (string, error) {
-	if password == "" {
-		return "", fmt.Errorf("password cannot be empty")
-	}
-
-	if !utf8.ValidString(password) {
-		return "", fmt.Errorf("password contains invalid UTF-8 sequences")
-	}
 	existingUser, err := s.UserRepo.GetUserByLogin(login)
 	if err != nil {
 		return "", fmt.Errorf("failed to check user existence: %w", err)
@@ -44,6 +37,13 @@ func (s *AuthStructService) Register(login, password string) (string, error) {
 
 	if existingUser != nil {
 		return "", ErrLoginTaken
+	}
+
+	if password == "" {
+		return "", fmt.Errorf("password cannot be empty")
+	}
+	if !utf8.ValidString(password) {
+		return "", fmt.Errorf("password contains invalid UTF-8 sequences")
 	}
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)

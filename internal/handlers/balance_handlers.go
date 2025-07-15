@@ -81,7 +81,7 @@ func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if exists {
-		http.Error(w, "Withdrawal for this order already existsr", http.StatusConflict)
+		http.Error(w, "Withdrawal for this order already exists", http.StatusConflict)
 		return
 	}
 
@@ -100,6 +100,7 @@ func (h *BalanceHandler) Withdraw(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// TODO dto add
 	withdrawal := models.Withdrawal{
 		UserID:      userID,
 		OrderNumber: req.Order,

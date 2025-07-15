@@ -40,6 +40,7 @@ func (p *PostgresStorage) createTable(ctx context.Context, db *sql.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed to create users table: %w", err)
 	}
+
 	_, err = tx.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS orders (
 		    id SERIAL PRIMARY KEY,
@@ -51,7 +52,7 @@ func (p *PostgresStorage) createTable(ctx context.Context, db *sql.DB) error {
 		)
 	`)
 	if err != nil {
-		return fmt.Errorf("failed to orders users table: %w", err)
+		return fmt.Errorf("failed to create orders table: %w", err)
 	}
 
 	_, err = tx.ExecContext(ctx, `
