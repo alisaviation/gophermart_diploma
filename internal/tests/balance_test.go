@@ -2,12 +2,15 @@ package tests
 
 import (
 	"errors"
+	"net/http"
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/alisaviation/internal/gophermart/dto"
 	"github.com/alisaviation/internal/gophermart/models"
 	"github.com/alisaviation/internal/gophermart/services"
 	"github.com/alisaviation/internal/tests/mocks"
@@ -101,35 +104,39 @@ func TestBalancesService_CreateWithdrawal(t *testing.T) {
 
 func TestBalancesService_GetUserBalance(t *testing.T) {
 	tests := []struct {
-		name      string
-		setupMock func(*mocks.MockBalance)
-		userID    int
-		want      *models.Balance
-		wantErr   bool
+		name       string
+		setupMock  func(*mocks.MockBalance)
+		userID     int
+		want       *dto.BalanceResponse
+		wantStatus int
+		wantErr    bool
 	}{
 		{
 			name: "successful balance retrieval",
 			setupMock: func(mb *mocks.MockBalance) {
 				mb.On("GetBalance", 1).Return(&models.Balance{
+					UserID:    1,
 					Current:   500.75,
 					Withdrawn: 100.25,
 				}, nil)
 			},
 			userID: 1,
-			want: &models.Balance{
+			want: &dto.BalanceResponse{
 				Current:   500.75,
 				Withdrawn: 100.25,
 			},
-			wantErr: false,
+			wantStatus: http.StatusOK,
+			wantErr:    false,
 		},
 		{
 			name: "error getting balance",
 			setupMock: func(mb *mocks.MockBalance) {
 				mb.On("GetBalance", 1).Return(nil, errors.New("database error"))
 			},
-			userID:  1,
-			want:    nil,
-			wantErr: true,
+			userID:     1,
+			want:       nil,
+			wantStatus: http.StatusInternalServerError,
+			wantErr:    true,
 		},
 	}
 
@@ -142,9 +149,14 @@ func TestBalancesService_GetUserBalance(t *testing.T) {
 				Balance: mockBalance,
 			}
 
-			got, err := s.GetUserBalance(tt.userID)
+			got, status, err := s.GetUserBalance(tt.userID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetUserBalance() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if status != tt.wantStatus {
+				t.Errorf("GetUserBalance() status = %d, want %d", status, tt.wantStatus)
 			}
 
 			if !reflect.DeepEqual(got, tt.want) {
@@ -156,13 +168,95 @@ func TestBalancesService_GetUserBalance(t *testing.T) {
 	}
 }
 
+//	func TestBalancesService_GetUserWithdrawals(t *testing.T) {
+//		tests := []struct {
+//			name      string
+//			setupMock func(*mocks.MockBalance)
+//			userID    int
+//			want      []models.Withdrawal
+//			wantErr   bool
+//		}{
+//			{
+//				name: "successful withdrawals retrieval",
+//				setupMock: func(mb *mocks.MockBalance) {
+//					mb.On("GetWithdrawals", 1).Return([]models.Withdrawal{
+//						{
+//							UserID:      1,
+//							OrderNumber: "123",
+//							Sum:         100.5,
+//						},
+//						{
+//							UserID:      1,
+//							OrderNumber: "456",
+//							Sum:         200.75,
+//						},
+//					}, nil)
+//				},
+//				userID: 1,
+//				want: []models.Withdrawal{
+//					{
+//						UserID:      1,
+//						OrderNumber: "123",
+//						Sum:         100.5,
+//					},
+//					{
+//						UserID:      1,
+//						OrderNumber: "456",
+//						Sum:         200.75,
+//					},
+//				},
+//				wantErr: false,
+//			},
+//			{
+//				name: "no withdrawals found",
+//				setupMock: func(mb *mocks.MockBalance) {
+//					mb.On("GetWithdrawals", 1).Return([]models.Withdrawal{}, nil)
+//				},
+//				userID:  1,
+//				want:    []models.Withdrawal{},
+//				wantErr: false,
+//			},
+//			{
+//				name: "error getting withdrawals",
+//				setupMock: func(mb *mocks.MockBalance) {
+//					mb.On("GetWithdrawals", 1).Return(nil, errors.New("database error"))
+//				},
+//				userID:  1,
+//				want:    nil,
+//				wantErr: true,
+//			},
+//		}
+//
+//		for _, tt := range tests {
+//			t.Run(tt.name, func(t *testing.T) {
+//				mockBalance := new(mocks.MockBalance)
+//				tt.setupMock(mockBalance)
+//
+//				s := &services.BalancesService{
+//					Balance: mockBalance,
+//				}
+//
+//				got, _, err := s.GetUserWithdrawals(tt.userID)
+//				if (err != nil) != tt.wantErr {
+//					t.Errorf("GetUserWithdrawals() error = %v, wantErr %v", err, tt.wantErr)
+//				}
+//
+//				if !reflect.DeepEqual(got, tt.want) {
+//					t.Errorf("GetUserWithdrawals() got = %v, want %v", got, tt.want)
+//				}
+//
+//				mockBalance.AssertExpectations(t)
+//			})
+//		}
+//	}
 func TestBalancesService_GetUserWithdrawals(t *testing.T) {
 	tests := []struct {
-		name      string
-		setupMock func(*mocks.MockBalance)
-		userID    int
-		want      []models.Withdrawal
-		wantErr   bool
+		name       string
+		setupMock  func(*mocks.MockBalance)
+		userID     int
+		want       []dto.WithdrawalResponse // Изменено на dto.WithdrawalResponse
+		wantStatus int                      // Добавлено для проверки статуса
+		wantErr    bool
 	}{
 		{
 			name: "successful withdrawals retrieval",
@@ -172,46 +266,51 @@ func TestBalancesService_GetUserWithdrawals(t *testing.T) {
 						UserID:      1,
 						OrderNumber: "123",
 						Sum:         100.5,
+						ProcessedAt: time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
 					},
 					{
 						UserID:      1,
 						OrderNumber: "456",
 						Sum:         200.75,
+						ProcessedAt: time.Date(2023, 1, 2, 0, 0, 0, 0, time.UTC),
 					},
 				}, nil)
 			},
 			userID: 1,
-			want: []models.Withdrawal{
+			want: []dto.WithdrawalResponse{
 				{
-					UserID:      1,
-					OrderNumber: "123",
+					Order:       "123",
 					Sum:         100.5,
+					ProcessedAt: "2023-01-01T00:00:00Z",
 				},
 				{
-					UserID:      1,
-					OrderNumber: "456",
+					Order:       "456",
 					Sum:         200.75,
+					ProcessedAt: "2023-01-02T00:00:00Z",
 				},
 			},
-			wantErr: false,
+			wantStatus: http.StatusOK,
+			wantErr:    false,
 		},
 		{
 			name: "no withdrawals found",
 			setupMock: func(mb *mocks.MockBalance) {
 				mb.On("GetWithdrawals", 1).Return([]models.Withdrawal{}, nil)
 			},
-			userID:  1,
-			want:    []models.Withdrawal{},
-			wantErr: false,
+			userID:     1,
+			want:       nil,
+			wantStatus: http.StatusNoContent,
+			wantErr:    false,
 		},
 		{
 			name: "error getting withdrawals",
 			setupMock: func(mb *mocks.MockBalance) {
 				mb.On("GetWithdrawals", 1).Return(nil, errors.New("database error"))
 			},
-			userID:  1,
-			want:    nil,
-			wantErr: true,
+			userID:     1,
+			want:       nil,
+			wantStatus: http.StatusInternalServerError,
+			wantErr:    true,
 		},
 	}
 
@@ -224,9 +323,14 @@ func TestBalancesService_GetUserWithdrawals(t *testing.T) {
 				Balance: mockBalance,
 			}
 
-			got, err := s.GetUserWithdrawals(tt.userID)
+			got, status, err := s.GetUserWithdrawals(tt.userID)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetUserWithdrawals() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+
+			if status != tt.wantStatus {
+				t.Errorf("GetUserWithdrawals() status = %d, want %d", status, tt.wantStatus)
 			}
 
 			if !reflect.DeepEqual(got, tt.want) {

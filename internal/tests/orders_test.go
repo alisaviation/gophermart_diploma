@@ -262,11 +262,6 @@ func TestOrderService_GetOrders(t *testing.T) {
 }
 
 func TestOrderService_ValidateOrderNumber(t *testing.T) {
-	mockOrderDB := new(mocks.MockOrderDB)
-	mockAccrualClient := new(mocks.MockAccrualClient)
-
-	orderService := services.NewOrderService(mockOrderDB, mockAccrualClient)
-
 	tests := []struct {
 		name   string
 		number string
@@ -311,7 +306,7 @@ func TestOrderService_ValidateOrderNumber(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := orderService.ValidateOrderNumber(tt.number)
+			got := services.ValidateOrderNumber(tt.number)
 			assert.Equal(t, tt.want, got)
 		})
 	}
