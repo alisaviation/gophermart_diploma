@@ -34,7 +34,7 @@ type ServerApp struct {
 	storage        database.Storage
 	wg             sync.WaitGroup
 	mu             sync.RWMutex
-	jwtSecret      string
+	jwtSecret      []byte
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
@@ -44,6 +44,7 @@ func NewServerApp(conf config.Server) *ServerApp {
 	return &ServerApp{
 		config:         conf,
 		shutdownSignal: make(chan struct{}),
+		jwtSecret:      []byte(conf.JWTSecret),
 		ctx:            ctx,
 		cancel:         cancel,
 	}

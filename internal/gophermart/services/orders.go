@@ -27,58 +27,25 @@ func NewOrderService(orderDB database.Order, accrualClient AccrualClientInterfac
 		AccrualClient: accrualClient,
 	}
 }
-
-const (
-	minOrderNumberLength = 2
-)
-
-func (s *OrdersService) ValidateOrderNumber(number string) bool {
-	if len(number) < minOrderNumberLength {
-		return false
-	}
-
-	if number == "" {
-		return false
-	}
-
-	sum := 0
-	alternate := false
-
-	for i := len(number) - 1; i >= 0; i-- {
-		digit, err := strconv.Atoi(string(number[i]))
-		if err != nil {
-			return false
-		}
-
-		if alternate {
-			digit *= 2
-			if digit > 9 {
-				digit = (digit / 10) + (digit % 10)
-			}
-		}
-
-		sum += digit
-		alternate = !alternate
-	}
-
-	return sum%10 == 0
-}
-
 func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error) {
 	if _, err := strconv.Atoi(orderNumber); err != nil {
 		return http.StatusBadRequest, errors.New("order number must contain only digits")
 	}
 
-	if !s.ValidateOrderNumber(orderNumber) {
+	if !ValidateOrderNumber(orderNumber) {
 		return http.StatusUnprocessableEntity, errors.New("invalid order number by Luhn algorithm")
 	}
 
-	order, err := s.getNumberOrder(userID, orderNumber)
+	order, status, err := s.getOrderByNumber(userID, orderNumber)
 	if err != nil {
 		logger.Log.Error("Failed to check existing order",
 			zap.String("order", orderNumber),
 			zap.Error(err))
-		return http.StatusInternalServerError, err
+		return status, err
+	}
+
+	if order == nil && status == http.StatusOK {
+		return status, nil
 	}
 
 	err = s.OrderDB.CreateOrder(order)
@@ -92,27 +59,28 @@ func (s *OrdersService) UploadOrder(userID int, orderNumber string) (int, error)
 	return http.StatusAccepted, nil
 }
 
-func (s *OrdersService) getNumberOrder(userID int, orderNumber string) (*models.Order, error) {
+func (s *OrdersService) getOrderByNumber(userID int, orderNumber string) (*models.Order, int, error) {
 	existingOrder, err := s.OrderDB.GetOrderByNumber(orderNumber)
-	switch {
-	case err != nil && !errors.Is(err, postgres.ErrNotFound):
+	if err != nil && !errors.Is(err, postgres.ErrNotFound) {
 		logger.Log.Error("Failed to check existing order",
 			zap.String("order", orderNumber),
 			zap.Error(err))
-		return nil, fmt.Errorf("failed to check order: %w", err)
-	case existingOrder != nil && existingOrder.UserID == userID:
-		return nil, nil
-	case existingOrder != nil:
-		return nil, errors.New("order number already exists for another user")
+		return nil, http.StatusInternalServerError, fmt.Errorf("failed to check order: %w", err)
 	}
 
-	order := &models.Order{
+	if existingOrder != nil {
+		if existingOrder.UserID == userID {
+			return nil, http.StatusOK, nil
+		}
+		return nil, http.StatusConflict, errors.New("order number already exists for another user")
+	}
+
+	return &models.Order{
 		UserID:     userID,
 		Number:     orderNumber,
 		Status:     "NEW",
 		UploadedAt: time.Now(),
-	}
-	return order, nil
+	}, http.StatusAccepted, nil
 }
 
 func (s *OrdersService) GetOrders(userID int) ([]models.Order, error) {

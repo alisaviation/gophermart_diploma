@@ -13,9 +13,9 @@ type JWTService struct {
 	Issuer    string
 }
 
-func NewJWTService(secret string, issuer string) *JWTService {
+func NewJWTService(secret []byte, issuer string) *JWTService {
 	return &JWTService{
-		SecretKey: []byte(secret),
+		SecretKey: secret,
 		Issuer:    issuer,
 	}
 }

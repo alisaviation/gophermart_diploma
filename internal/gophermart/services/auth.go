@@ -22,7 +22,7 @@ type AuthStructService struct {
 	JwtService JWTServiceInterface
 }
 
-func NewAuthService(userRepo database.User, jwtSecret string) AuthService {
+func NewAuthService(userRepo database.User, jwtSecret []byte) AuthService {
 	return &AuthStructService{
 		UserRepo:   userRepo,
 		JwtService: NewJWTService(jwtSecret, "gophermart"),
