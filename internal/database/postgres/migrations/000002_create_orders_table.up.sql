@@ -1,0 +1,8 @@
+CREATE TABLE IF NOT EXISTS orders (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    number TEXT NOT NULL UNIQUE,
+    status TEXT NOT NULL,
+    accrual DECIMAL(10, 2) DEFAULT 0,
+    uploaded_at TIMESTAMP WITH TIME ZONE NOT NULL
+);

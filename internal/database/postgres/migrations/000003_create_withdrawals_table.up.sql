@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS withdrawals (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    order_number TEXT NOT NULL UNIQUE,
+    sum DECIMAL(10, 2) NOT NULL,
+    processed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
